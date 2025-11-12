@@ -1,0 +1,6 @@
+# Dependências (ESSENCIAL)
+node_modules/
+
+# Arquivos de Ambiente (MUITO IMPORTANTE)
+.env
+.env.local

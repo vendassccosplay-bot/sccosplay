@@ -1,0 +1,11 @@
+[build]
+  # Esta é a pasta onde seu site estático (HTML, CSS, JS) está.
+  # Se seu index.html já está na raiz, você pode pular esta linha.
+  # publish = "public" 
+
+  # Onde a Netlify encontrará suas funções
+  functions = "netlify/functions/"
+
+[functions]
+  # Configuração para o Node.js
+  node_bundler = "esbuild"
