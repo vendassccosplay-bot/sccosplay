@@ -1,12 +1,12 @@
 /*
- * NETLIFY FUNCTION: webhook-mercadopago.js (Versão 3.0 - Controle de Estoque)
+ * NETLIFY FUNCTION: webhook-mercadopago.js (Versão 3.1 - Controle de Estoque + Endereço Completo)
  * Recebe o webhook, envia e-mail para o dono E dá baixa no estoque do Supabase.
  */
 
 const { MercadoPagoConfig, Payment } = require('mercadopago');
 const fetch = require('node-fetch');
 const querystring = require('querystring'); 
-const { createClient } = require('@supabase/supabase-js'); // <--- NOVO
+const { createClient } = require('@supabase/supabase-js');
 
 // Função principal
 exports.handler = async (event) => {
@@ -18,8 +18,8 @@ exports.handler = async (event) => {
     // --- 1. Pegar as chaves secretas ---
     const MERCADO_PAGO_TOKEN = process.env.MP_ACCESS_TOKEN_PROD;
     const SITE_URL = process.env.SITE_URL; 
-    const SUPABASE_URL = process.env.SUPABASE_URL; // <--- NOVO
-    const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY; // <--- NOVO
+    const SUPABASE_URL = process.env.SUPABASE_URL;
+    const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 
     if (!MERCADO_PAGO_TOKEN || !SITE_URL || !SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
         console.error("Erro: Variáveis de ambiente não definidas (MP, SITE_URL, ou Supabase).");
@@ -41,23 +41,31 @@ exports.handler = async (event) => {
             const paymentClient = new Payment(client);
             const paymentDetails = await paymentClient.get({ id: paymentId });
 
+            // LOG COMPLETO PARA DEBUG (ver no Netlify Functions → Logs)
+            console.log('📦 DADOS COMPLETOS DO PAGAMENTO:');
+            console.log(JSON.stringify(paymentDetails, null, 2));
+
             // --- 4. SÓ EXECUTAR SE O PAGAMENTO FOI APROVADO! ---
             if (paymentDetails.status === 'approved') {
                 
-                let emailCorpo = `...`; // (O código do e-mail vai aqui embaixo)
-                const itemsVendidos = paymentDetails.additional_info?.items;
+                const itemsVendidos = paymentDetails.additional_info?.items || [];
+                const errosEstoque = [];
 
                 // --- 5. LÓGICA DE BAIXA DE ESTOQUE ---
-                if (itemsVendidos && itemsVendidos.length > 0) {
+                if (itemsVendidos.length > 0) {
                     
-                    // Usamos Promise.all para rodar todas as atualizações de estoque
                     const stockUpdates = itemsVendidos.map(async (item) => {
-                        // O 'item.id' foi o que enviamos do script.js
                         const produtoId = parseInt(item.id); 
                         const quantidadeVendida = parseInt(item.quantity);
 
+                        // Validação robusta
+                        if (isNaN(produtoId) || isNaN(quantidadeVendida)) {
+                            console.error(`ID ou quantidade inválida: ${item.id}, ${item.quantity}`);
+                            errosEstoque.push(`${item.title}: ID ou quantidade inválida`);
+                            return;
+                        }
+
                         if (produtoId && quantidadeVendida > 0) {
-                            // Chama a função 'decrement_stock' no Supabase
                             const { error: stockError } = await supabaseAdmin
                                 .rpc('decrement_stock', { 
                                     product_id: produtoId, 
@@ -66,53 +74,115 @@ exports.handler = async (event) => {
                             
                             if (stockError) {
                                 console.error(`Erro ao atualizar estoque do ID ${produtoId}:`, stockError.message);
-                                // Não para o processo, só registra o erro
+                                errosEstoque.push(`${item.title} (ID: ${produtoId}): ${stockError.message}`);
                             } else {
-                                console.log(`Estoque do ID ${produtoId} atualizado com sucesso.`);
+                                console.log(`✅ Estoque do ID ${produtoId} atualizado com sucesso.`);
                             }
                         }
                     });
                     
-                    await Promise.all(stockUpdates); // Espera o estoque atualizar
+                    await Promise.all(stockUpdates);
                 }
                 // --- FIM DO ESTOQUE ---
 
 
-                // --- 6. LÓGICA DE E-MAIL (Igual a antes) ---
-                emailCorpo = `
-Você recebeu uma nova venda!
----------------------------------
-Status: ${paymentDetails.status}
-Valor Total (com frete): R$ ${paymentDetails.transaction_amount}
-Pagador: ${paymentDetails.payer.email}
-ID da Transação: ${paymentId}
----------------------------------
-Itens:
+                // --- 6. MONTAGEM DO E-MAIL ---
+                let emailCorpo = `
+🎉 NOVA VENDA APROVADA!
+═══════════════════════════════════════
+💰 Valor Total (com frete): R$ ${paymentDetails.transaction_amount}
+📧 Email: ${paymentDetails.payer?.email || 'Não informado'}
+👤 Nome: ${paymentDetails.payer?.first_name || ''} ${paymentDetails.payer?.last_name || ''}
+📱 Telefone: ${paymentDetails.payer?.phone?.number || 'Não informado'}
+🆔 ID da Transação: ${paymentId}
+
+═══════════════════════════════════════
+🛒 ITENS VENDIDOS:
 `;
-                if (itemsVendidos) {
+                
+                if (itemsVendidos.length > 0) {
                     itemsVendidos.forEach(item => {
-                        emailCorpo += `- ${item.title} (Qtd: ${item.quantity}) - R$ ${item.unit_price}\n`;
+                        emailCorpo += `   • ${item.title}\n`;
+                        emailCorpo += `     Quantidade: ${item.quantity}\n`;
+                        emailCorpo += `     Preço unitário: R$ ${item.unit_price}\n\n`;
                     });
                 }
 
-                emailCorpo += "\n---------------------------------\n";
-                emailCorpo += "INFORMAÇÕES DE ENTREGA (Preenchidas no MP):\n";
-                
-                const addr = paymentDetails.additional_info?.shipments?.receiver_address;
-                
-                if (addr) {
-                    emailCorpo += `Rua: ${addr.street_name || ''}, ${addr.street_number || ''}\n`;
-                    emailCorpo += `Bairro: ${addr.neighborhood?.name || '(Não informado)'}\n`;
-                    emailCorpo += `Cidade: ${addr.city?.name || ''} - ${addr.state?.name || ''}\n`;
-                    emailCorpo += `CEP: ${addr.zip_code || ''}\n`;
-                    emailCorpo += `Complemento: ${addr.comment || '(Nenhum)'}\n`;
-                } else {
-                    emailCorpo += "Endereço não informado.\n";
+                // Aviso de erros no estoque
+                if (errosEstoque.length > 0) {
+                    emailCorpo += `\n⚠️ ATENÇÃO - ERROS NO CONTROLE DE ESTOQUE:\n`;
+                    errosEstoque.forEach(erro => {
+                        emailCorpo += `   • ${erro}\n`;
+                    });
                 }
+
+                emailCorpo += `\n═══════════════════════════════════════\n`;
+                emailCorpo += `📍 INFORMAÇÕES DE ENTREGA:\n\n`;
                 
+                // BUSCA O ENDEREÇO EM TODOS OS LOCAIS POSSÍVEIS
+                let enderecoEncontrado = false;
+                let addr = null;
+                
+                // Prioridade 1: shipments direto (mais comum com mode: 'custom')
+                if (paymentDetails.shipments?.receiver_address) {
+                    addr = paymentDetails.shipments.receiver_address;
+                    enderecoEncontrado = true;
+                    console.log('✅ Endereço encontrado em: shipments.receiver_address');
+                }
+                // Prioridade 2: additional_info.shipments
+                else if (paymentDetails.additional_info?.shipments?.receiver_address) {
+                    addr = paymentDetails.additional_info.shipments.receiver_address;
+                    enderecoEncontrado = true;
+                    console.log('✅ Endereço encontrado em: additional_info.shipments');
+                }
+                // Prioridade 3: order.shipments
+                else if (paymentDetails.order?.shipments?.length > 0) {
+                    addr = paymentDetails.order.shipments[0].receiver_address;
+                    enderecoEncontrado = true;
+                    console.log('✅ Endereço encontrado em: order.shipments');
+                }
+                // Prioridade 4: payer.address
+                else if (paymentDetails.payer?.address) {
+                    addr = paymentDetails.payer.address;
+                    enderecoEncontrado = true;
+                    console.log('✅ Endereço encontrado em: payer.address');
+                }
+
+                if (enderecoEncontrado && addr) {
+                    emailCorpo += `📦 Destinatário: ${addr.receiver_name || paymentDetails.payer?.first_name || 'Não informado'}\n`;
+                    emailCorpo += `🏠 Endereço: ${addr.street_name || ''}, ${addr.street_number || 'S/N'}\n`;
+                    
+                    // Apartamento/Casa
+                    if (addr.floor || addr.apartment) {
+                        emailCorpo += `🚪 Apto/Casa: ${addr.floor || ''} ${addr.apartment || ''}\n`;
+                    }
+                    
+                    emailCorpo += `🏘️ Bairro: ${addr.neighborhood?.name || addr.neighborhood || 'Não informado'}\n`;
+                    emailCorpo += `🌆 Cidade: ${addr.city?.name || addr.city_name || 'Não informado'}\n`;
+                    emailCorpo += `🗺️ Estado: ${addr.state?.name || addr.state_name || 'Não informado'}\n`;
+                    emailCorpo += `📮 CEP: ${addr.zip_code || 'Não informado'}\n`;
+                    
+                    // Complemento/Observações
+                    if (addr.comment) {
+                        emailCorpo += `📝 Complemento: ${addr.comment}\n`;
+                    }
+                } else {
+                    console.error('❌ ENDEREÇO NÃO ENCONTRADO EM NENHUM LOCAL!');
+                    emailCorpo += `⚠️ ATENÇÃO: O ENDEREÇO NÃO FOI INFORMADO!\n\n`;
+                    emailCorpo += `Possíveis motivos:\n`;
+                    emailCorpo += `• O comprador não preencheu o endereço no checkout\n`;
+                    emailCorpo += `• Problema na configuração do Mercado Pago\n`;
+                    emailCorpo += `• O frete não foi ativado corretamente\n\n`;
+                    emailCorpo += `👉 Acesse: https://www.mercadopago.com.br/activities/${paymentId}\n`;
+                }
+
+                emailCorpo += `\n═══════════════════════════════════════\n`;
+                emailCorpo += `🔗 Ver no Mercado Pago: https://www.mercadopago.com.br/activities/${paymentId}\n`;
+                
+                // --- 7. ENVIAR E-MAIL ---
                 const formData = {
                     'form-name': 'vendas',
-                    'assunto': `Nova Venda Aprovada! Pedido #${paymentId}`,
+                    'assunto': `🎉 Nova Venda #${paymentId} - R$ ${paymentDetails.transaction_amount}`,
                     'detalhes': emailCorpo,
                 };
 
@@ -121,14 +191,16 @@ Itens:
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: querystring.stringify(formData),
                 });
+
+                console.log('✅ Email enviado com sucesso!');
             }
         }
 
-        // 7. Responder 200 OK para o Mercado Pago
+        // 8. Responder 200 OK para o Mercado Pago
         return { statusCode: 200, body: 'Notificação recebida com sucesso.' };
 
     } catch (error) {
-        console.error('Erro no webhook:', error);
+        console.error('❌ Erro no webhook:', error);
         return { statusCode: 500, body: 'Erro interno no processamento do webhook.' };
     }
 };

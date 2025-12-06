@@ -1,6 +1,6 @@
 /*
  * NETLIFY FUNCTION: criar-pagamento.js
- * (Esta versão já está correta, apenas recebe o frete e cobra)
+ * (Versão 3.1 - FORÇA coleta de endereço)
  */
 
 const { MercadoPagoConfig, Preference } = require('mercadopago');
@@ -44,10 +44,35 @@ exports.handler = async (event) => {
             },
             auto_return: "approved",
             
-            // Adiciona o frete dos Correios e pede o endereço
+            // ========================================
+            // CONFIGURAÇÃO COMPLETA DE FRETE/ENDEREÇO
+            // ========================================
             shipments: {
-                mode: 'not_specified', 
-                cost: frete 
+                mode: 'custom', // ← MUDOU AQUI! Isso FORÇA o endereço
+                cost: frete,
+                receiver_address: {
+                    zip_code: "", // Deixa vazio para o comprador preencher
+                    street_name: "",
+                    street_number: ""
+                }
+            },
+            
+            // ========================================
+            // FORÇA A COLETA DE DADOS DO COMPRADOR
+            // ========================================
+            payer: {
+                name: "",
+                surname: "",
+                email: "",
+                phone: {
+                    area_code: "",
+                    number: ""
+                },
+                address: {
+                    zip_code: "",
+                    street_name: "",
+                    street_number: ""
+                }
             }
         };
 
