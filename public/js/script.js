@@ -1,8 +1,16 @@
 /*
- * SC COSPLAY - SCRIPT PRINCIPAL (Integrado com Supabase e NETLIFY FUNCTIONS)
- * Versão: 10.2 - Implementando Paginação Híbrida
+ * SC COSPLAY - SCRIPT PRINCIPAL (MODIFICADO PARA WHATSAPP)
+ * Versão: 10.3 - Integração WhatsApp Checkout
+ * 
+ * MUDANÇAS:
+ * - Linha ~17: Adicionado WHATSAPP_NUMERO
+ * - Função handleDeliverySubmit() TOTALMENTE MODIFICADA (linha ~550+)
+ * - Agora envia dados para WhatsApp ao invés do Mercado Pago
  */
 document.addEventListener('DOMContentLoaded', () => {
+
+    // --- 🟢 CONFIGURAÇÃO DO WHATSAPP (ADICIONE AQUI!) ---
+    const WHATSAPP_NUMERO = "5519999999999"; // ⚠️ MUDE PARA O NÚMERO REAL DA EMPRESA
 
     // --- 1. CONFIGURAÇÃO DO SUPABASE ---
     const SUPABASE_URL = 'https://epfdigzbupmoyzlydmsu.supabase.co';
@@ -10,10 +18,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let supabaseClient;
 
     // --- 2. ESTADO DA APLICAÇÃO ---
-    let allProducts = []; // 🟡 Renomeado de 'products'
-    let currentFilteredProducts = []; // 💚 Adicionado
-    let currentPage = 1; // 💚 Adicionado
-    const productsPerPage = 8; // 💚 Adicionado (Defina 8, 12, etc.)
+    let allProducts = [];
+    let currentFilteredProducts = [];
+    let currentPage = 1;
+    const productsPerPage = 8;
     let cart = []; 
     let favorites = [];
     let freteCalculado = 0; 
@@ -29,15 +37,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const cartCount = document.getElementById('cart-count');
     const productGrid = document.getElementById('product-grid');
     const productSection = document.getElementById('product-section'); 
-    
-    // --- MUDANÇA (INÍCIO): Seletores da máscara "Ver Mais" (Mantidos) ---
     const productGridWrapper = document.getElementById('product-grid-wrapper');
     const loadMoreContainer = document.getElementById('load-more-container');
     const loadMoreBtn = document.getElementById('load-more-btn');
-    // --- MUDANÇA (FIM) ---
-    
-    const paginacaoContainer = document.getElementById('paginacao'); // 💚 Adicionado
-    
+    const paginacaoContainer = document.getElementById('paginacao');
     const headerSearchInput = document.getElementById('header-search-input');
     const headerSearchBtn = document.getElementById('header-search-btn');
     const sectionSearchInput = document.getElementById('section-search-input');
@@ -125,8 +128,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- 5. FUNÇÕES DE PRODUTO E FILTRO ---
-    
-    // 🟡 FUNÇÃO TOTALMENTE SUBSTITUÍDA
     function filterAndSortProducts() {
         if (!categoryFilters || !sortFilter || !productGrid) return;
         const headerTerm = headerSearchInput ? headerSearchInput.value.toLowerCase() : '';
@@ -136,7 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const activeCategory = activeCategoryButton ? activeCategoryButton.dataset.category : 'all';
         const sortBy = sortFilter.value;
         
-        let filteredProducts = [...allProducts]; // 🟡 Usa 'allProducts'
+        let filteredProducts = [...allProducts];
 
         if (activeCategory !== 'all') {
             filteredProducts = filteredProducts.filter(p => p.category === activeCategory);
@@ -153,37 +154,27 @@ document.addEventListener('DOMContentLoaded', () => {
             filteredProducts = filteredProducts.filter(p => favorites.includes(p.id));
         }
 
-        // 💚 NOVO: Salva os produtos filtrados
         currentFilteredProducts = filteredProducts;
-        
-        // 💚 RESETA A VISUALIZAÇÃO PARA O ESTADO INICIAL
         currentPage = 1;
         
-        // 💚 Esconde a paginação (1, 2, 3...)
         if (paginacaoContainer) {
             paginacaoContainer.classList.remove('visible');
         }
         
-        // 💚 Restaura a grade para o modo "cortado"
         productGridWrapper.classList.remove('expanded');
 
-        // 💚 Renderiza APENAS a primeira página de produtos
         const pageProducts = currentFilteredProducts.slice(0, productsPerPage);
-        renderProducts(pageProducts); // Renderiza SÓ a 1ª página
+        renderProducts(pageProducts);
         
-        // 💚 LÓGICA DE EXIBIÇÃO DO BOTÃO "VER MAIS"
-        // Se o total de produtos for menor ou igual ao que cabe na 1ª pág...
         if (currentFilteredProducts.length <= productsPerPage) {
-            // ...expande a grade e esconde o botão "Ver Mais"
             productGridWrapper.classList.add('expanded');
             if (loadMoreContainer) {
                 loadMoreContainer.style.display = 'none';
             }
         } else {
-            // ...senão, garante que a grade esteja "fechada" e o botão "Ver Mais" apareça
             productGridWrapper.classList.remove('expanded');
             if (loadMoreContainer) {
-                loadMoreContainer.style.display = 'flex'; // Use 'flex' como no CSS
+                loadMoreContainer.style.display = 'flex';
             }
         }
     }
@@ -234,18 +225,9 @@ document.addEventListener('DOMContentLoaded', () => {
             productGrid.appendChild(card);
         });
 
-        // --- MUDANÇA (INÍCIO): Lógica "Ver Mais" foi REMOVIDA daqui ---
-        // 🔴 Bloco "if (loadMoreBtn && productGridWrapper)" removido.
-        // --- MUDANÇA (FIM) ---
-
         setupScrollAnimations();
     }
 
-    // 💚 --- INÍCIO: NOVAS FUNÇÕES DE PAGINAÇÃO --- 💚
-    
-    /**
-     * Pega os produtos filtrados, fatia a página atual e chama o render.
-     */
     function updateProductDisplay() {
         if (!productGrid) return;
 
@@ -254,32 +236,26 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const pageProducts = currentFilteredProducts.slice(inicio, fim);
         
-        renderProducts(pageProducts); // Renderiza apenas os produtos da página
-        setupPaginationControls(); // Recria os botões de paginação (1, 2, 3...)
+        renderProducts(pageProducts);
+        setupPaginationControls();
 
-        // Rola para o topo da seção de produtos
         if (productSection) {
-            // Adiciona um pequeno delay para esperar a renderização
             setTimeout(() => {
                 productSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }, 100);
         }
     }
 
-    /**
-     * Cria os botões (1, 2, 3...) com base no total de produtos filtrados.
-     */
     function setupPaginationControls() {
         if (!paginacaoContainer) return;
-        paginacaoContainer.innerHTML = ''; // Limpa botões antigos
+        paginacaoContainer.innerHTML = '';
 
         const totalPaginas = Math.ceil(currentFilteredProducts.length / productsPerPage);
-        if (totalPaginas <= 1) return; // Não mostra paginação se só tem 1 página
+        if (totalPaginas <= 1) return;
 
-        // --- Botão "Anterior" ---
         const btnAnterior = document.createElement('a');
         btnAnterior.href = "#";
-        btnAnterior.innerHTML = "&lt;"; // Símbolo <
+        btnAnterior.innerHTML = "&lt;";
         btnAnterior.classList.add('arrow-button');
         if (currentPage === 1) {
             btnAnterior.classList.add('disabled');
@@ -293,14 +269,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         paginacaoContainer.appendChild(btnAnterior);
 
-        // --- Botões de Número (Lógica para mostrar ... 5 6 7 ...) ---
         let inicio = Math.max(1, currentPage - 2);
         let fim = Math.min(totalPaginas, currentPage + 2);
 
-        if (currentPage <= 2) { // Perto do início
+        if (currentPage <= 2) {
             fim = Math.min(5, totalPaginas);
         }
-        if (currentPage >= totalPaginas - 1) { // Perto do fim
+        if (currentPage >= totalPaginas - 1) {
             inicio = Math.max(1, totalPaginas - 4);
         }
 
@@ -322,10 +297,9 @@ document.addEventListener('DOMContentLoaded', () => {
             paginacaoContainer.appendChild(btnPagina);
         }
 
-        // --- Botão "Seguinte" ---
         const btnSeguinte = document.createElement('a');
         btnSeguinte.href = "#";
-        btnSeguinte.innerHTML = "&gt;"; // Símbolo >
+        btnSeguinte.innerHTML = "&gt;";
         btnSeguinte.classList.add('arrow-button');
         if (currentPage === totalPaginas) {
             btnSeguinte.classList.add('disabled');
@@ -339,12 +313,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         paginacaoContainer.appendChild(btnSeguinte);
     }
-    // 💚 --- FIM: NOVAS FUNÇÕES DE PAGINAÇÃO --- 💚
-
 
     // --- 6. FUNÇÕES DOS MODAIS ---
     function openProductModal(productId) {
-        // 🟡 Modificado para 'allProducts'
         const product = allProducts.find(p => p.id == productId);
         if (!product || !productModalOverlay) { console.warn(`Produto ${productId} não encontrado.`); return; }
         if (!product.stock || product.stock <= 0) { showNotification("Esgotado!"); return };
@@ -371,7 +342,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <img src="${productImage}" alt="${productName}" id="modal-product-image" class="carousel-main-image" onerror="this.onerror=null;this.src='img/placeholder.png';">
                         <div class="image-thumbnails">
                             ${galleryImages.map((img, index) => `
-                                <img src="${img}" alt="Thumbnail ${index+1}" class="thumbnail-image" data-index="${index}" onclick="document.getElementById('modal-product-image').src='${img}'" onerror="this.onerror=null;this.src='img/placeholder.focus:()'" />
+                                <img src="${img}" alt="Thumbnail ${index+1}" class="thumbnail-image" data-index="${index}" onclick="document.getElementById('modal-product-image').src='${img}'" onerror="this.onerror=null;this.src='img/placeholder.png'" />
                             `).join('')}
                         </div>
                     </div>
@@ -421,7 +392,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function openCartModal() {
         if (!cartModalOverlay) return;
-        const modalHTML = `<div class="cart-modal"><div class="cart-modal-header"><h3>Seu Carrinho</h3><button class="close-modal-btn" id="dynamic-close-cart">&times;</button></div><div class="cart-modal-body" id="cart-items-container"></div><div class="cart-modal-footer"><div class="cart-total"><strong>Total:</strong><span id="cart-total-price">R$ 0,00</span></div><button class="checkout-btn" id="dynamic-checkout-btn"><i class="fas fa-credit-card"></i>Fazer pagamento</button></div></div>`;
+        const modalHTML = `<div class="cart-modal"><div class="cart-modal-header"><h3>Seu Carrinho</h3><button class="close-modal-btn" id="dynamic-close-cart">&times;</button></div><div class="cart-modal-body" id="cart-items-container"></div><div class="cart-modal-footer"><div class="cart-total"><strong>Total:</strong><span id="cart-total-price">R$ 0,00</span></div><button class="checkout-btn" id="dynamic-checkout-btn"><i class="fas fa-credit-card"></i>Finalizar Pedido</button></div></div>`;
         cartModalOverlay.innerHTML = modalHTML; cartModalOverlay.classList.add('modal-overlay'); cartModalOverlay.classList.add('active'); renderCartItems();
         const cBtn = document.getElementById('dynamic-close-cart'); const oBtn = document.getElementById('dynamic-checkout-btn'); const iCont = document.getElementById('cart-items-container');
         if(cBtn) cBtn.addEventListener('click', closeCartModal); if(oBtn) oBtn.addEventListener('click', () => { if (cart.length > 0) { closeCartModal(); openDeliveryModal(); } }); if(iCont) iCont.addEventListener('click', (e) => { if (e.target.classList.contains('remove-item-btn')) removeFromCart(Number(e.target.dataset.cartid)); });
@@ -444,7 +415,6 @@ document.addEventListener('DOMContentLoaded', () => {
             chkBtn.style.backgroundColor = '#555'; 
         } else { 
             cart.forEach(item => { 
-                // 🟡 Modificado para 'allProducts'
                 const p = allProducts.find(prod => prod.id == item.id);
                 if (!p) return; 
                 
@@ -464,7 +434,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function addToCart(productId, size) { 
-        // 🟡 Modificado para 'allProducts'
         const p = allProducts.find(p => p.id == productId); 
         if (p) { 
             cart.push({ id: p.id, size: size, cartId: Date.now() }); 
@@ -585,7 +554,6 @@ document.addEventListener('DOMContentLoaded', () => {
         freteServico = ''; 
 
         const cartItemsData = cart.map(item => {
-            // 🟡 Modificado para 'allProducts'
             return allProducts.find(p => p.id == item.id);
         }).filter(p => p != null); 
 
@@ -623,6 +591,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
+    // 🟢 --- FUNÇÃO TOTALMENTE MODIFICADA PARA WHATSAPP --- 🟢
     async function handleDeliverySubmit(event) {
         event.preventDefault();
         if (!deliveryForm || cart.length === 0) return;
@@ -631,11 +600,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const requiredInputs = deliveryForm.querySelectorAll('input[required]');
         let valid = true;
         let firstInv = null;
+        
         requiredInputs.forEach(i => {
             i.classList.remove('invalid');
             const e = i.closest('.form-group')?.querySelector('.error-message');
             if (e) e.style.display = 'none';
         });
+        
         requiredInputs.forEach(i => {
             let inv = !i.value.trim();
             if (i.id === 'client-cep' && i.value.replace(/\D/g, '').length !== 8) inv = true;
@@ -648,6 +619,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         
+        // Verifica se o frete foi calculado
         if (freteCalculado <= 0) {
             valid = false;
             showNotification("Erro: O frete não foi calculado. Verifique o CEP.");
@@ -661,67 +633,85 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // --- 2. PREPARAÇÃO DOS DADOS PARA O BACKEND ---
-        const mpItems = cart.map(item => {
-            // 🟡 Modificado para 'allProducts'
-            const p = allProducts.find(prod => prod.id == item.id);
-            return {
-                id: p.id,
-                title: `${p.name} (Tam: ${item.size})`,
-                quantity: 1, 
-                unit_price: p.price 
-            };
+        // --- 2. CAPTURA DADOS DO FORMULÁRIO ---
+        const nomeCompleto = document.getElementById('client-name')?.value || '';
+        const cep = cepInput.value;
+        const endereco = addressInput.value;
+        const numero = numberInput.value;
+        const complemento = document.getElementById('client-complement')?.value || '';
+        const bairro = bairroInput.value;
+        const cidade = cidadeInput.value;
+        const estado = ufInput.value;
+        const formaPagamento = document.querySelector('input[name="payment-method"]:checked')?.value || 'Pix';
+
+        // --- 3. MONTA A MENSAGEM DO WHATSAPP ---
+        let mensagem = '====== NOVO PEDIDO ======\n\n';
+        
+        // Adiciona os produtos
+        let totalProdutos = 0;
+        cart.forEach(item => {
+            const produto = allProducts.find(p => p.id == item.id);
+            if (produto) {
+                mensagem += `${produto.name} (Tam: ${item.size})\n`;
+                mensagem += `R$ ${produto.price.toFixed(2).replace('.', ',')}\n\n`;
+                totalProdutos += produto.price;
+            }
         });
         
-        const checkoutData = {
-            items: mpItems,
-            frete: freteCalculado,
-            freteServico: freteServico 
-        };
+        // Total do pedido
+        const totalComFrete = totalProdutos + freteCalculado;
+        mensagem += `SUBTOTAL: R$ ${totalProdutos.toFixed(2).replace('.', ',')}\n`;
+        mensagem += `FRETE (${freteServico}): R$ ${freteCalculado.toFixed(2).replace('.', ',')}\n`;
+        mensagem += `TOTAL DO PEDIDO: R$ ${totalComFrete.toFixed(2).replace('.', ',')}\n`;
+        mensagem += `Total de Itens: ${cart.length}\n\n`;
+        
+        // Dados do cliente
+        mensagem += '====== DADOS DO CLIENTE ======\n\n';
+        mensagem += `Nome Completo: ${nomeCompleto}\n`;
+        mensagem += `CEP: ${cep}\n`;
+        mensagem += `Endereço (Rua): ${endereco}\n`;
+        mensagem += `Número: ${numero}\n`;
+        if (complemento) {
+            mensagem += `Complemento: ${complemento}\n`;
+        }
+        mensagem += `Bairro: ${bairro}\n`;
+        mensagem += `Cidade: ${cidade}\n`;
+        mensagem += `Estado (UF): ${estado}\n`;
+        mensagem += `Forma de Pagamento: ${formaPagamento}\n\n`;
+        mensagem += 'Pedido gerado pelo site. Aguardando sua confirmação!';
 
+        // --- 4. CODIFICA E ABRE O WHATSAPP ---
+        const mensagemCodificada = encodeURIComponent(mensagem);
+        const linkWhatsApp = `https://wa.me/${WHATSAPP_NUMERO}?text=${mensagemCodificada}`;
+
+        // Feedback visual
         const confirmBtn = deliveryForm.querySelector('.confirm-order-btn');
         const originalText = confirmBtn.innerHTML;
         confirmBtn.disabled = true;
-        confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Criando Pagamento...';
+        confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Redirecionando...';
 
-        // --- 3. CHAMADA AO BACKEND (NETLIFY FUNCTION) ---
-        try {
-            const response = await fetch('/.netlify/functions/criar-pagamento', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(checkoutData)
-            });
-
-            if (!response.ok) {
-                let errorData = { error: "Erro desconhecido no servidor" };
-                try { errorData = await response.json(); } catch (e) { /* ignora */ }
-                console.error('Erro no backend Netlify/MP:', errorData.error);
-                showNotification(`Erro ao criar pagamento: ${errorData.error}`);
-                return;
-            }
-
-            const data = await response.json();
+        // Abre o WhatsApp
+        setTimeout(() => {
+            window.open(linkWhatsApp, '_blank');
             
-            if (data.redirectUrl) {
-                showNotification("Redirecionando para o pagamento...");
-                cart = [];
-                saveCart();
-                updateCartCount();
-                closeDeliveryModal();
-                deliveryForm.reset();
-                window.location.href = data.redirectUrl;
-            } else {
-                showNotification("Erro inesperado: URL de Checkout não recebida.");
-            }
-
-        } catch (e) {
-            console.error('Erro de conexão total (rede/servidor):', e);
-            showNotification("Erro de conexão. Verifique sua internet.");
-        } finally {
+            // Limpa o carrinho
+            cart = [];
+            saveCart();
+            updateCartCount();
+            
+            // Fecha o modal
+            closeDeliveryModal();
+            deliveryForm.reset();
+            
+            // Notificação
+            showNotification("Redirecionando para o WhatsApp...");
+            
+            // Restaura o botão
             confirmBtn.disabled = false;
             confirmBtn.innerHTML = originalText;
-        }
+        }, 500);
     }
+    // 🟢 --- FIM DA MODIFICAÇÃO --- 🟢
 
     // --- 10. FUNÇÕES AUXILIARES ---
     function showNotification(message) { if(!notificationContainer)return; const t=document.createElement('div');t.className='toast-notification';t.innerHTML=`<i class="fas fa-check-circle"></i> ${message}`;notificationContainer.appendChild(t);setTimeout(()=>t.remove(),4000);}
@@ -764,7 +754,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        // 💚 Verificando se o novo seletor 'paginacaoContainer' existe
         if (!cartIcon || !productGrid || !cartModalOverlay || !productModalOverlay || !deliveryModalOverlay || !deliveryForm || !cepInput || !productSection || !productGridWrapper || !loadMoreBtn || !paginacaoContainer) {
             console.error("Um ou mais elementos essenciais do DOM não foram encontrados. Verifique os IDs no HTML (incluindo 'paginacao').");
             return;
@@ -782,7 +771,6 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const [ , loadedProducts] = await Promise.all([heroAndThemePromise, productsPromise]);
             
-            // 🟡 Modificado para 'allProducts'
             allProducts = loadedProducts; 
 
             filterAndSortProducts(); 
@@ -817,7 +805,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.stopPropagation();
                 toggleFavorite(Number(card.dataset.id),favBtn);
             } else if((addBtn||card)&&card&&card.dataset.id){
-                // 🟡 Modificado para 'allProducts'
                 const p = allProducts.find(p=>p.id==card.dataset.id);
                 if(p&&(!p.stock||p.stock>0)){
                     openProductModal(Number(card.dataset.id));
@@ -853,39 +840,25 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if(accountIcon) accountIcon.addEventListener('click',(e)=>{e.preventDefault();alert("Conta: não implementado.");});
 
-        // --- MUDANÇA (INÍCIO): Listener do botão "Ver Mais" ATUALIZADO ---
         if (loadMoreBtn && productGridWrapper) {
             loadMoreBtn.addEventListener('click', () => {
-                
-                // 1. Expande a grade (remove o max-height)
                 productGridWrapper.classList.add('expanded');
-                
-                // 2. Esconde o próprio botão "Ver Mais"
                 if (loadMoreContainer) {
                     loadMoreContainer.style.display = 'none';
                 }
-
-                // 3. Mostra o container da paginação (1, 2, 3...)
                 if (paginacaoContainer) {
                     paginacaoContainer.classList.add('visible');
                 }
-
-                // 4. Renderiza a primeira página de produtos
-                // (O filtro já renderizou a pág 1,
-                // mas chamamos updateProductDisplay para garantir
-                // que a paginação (1,2,3) seja criada e o scroll ocorra)
                 currentPage = 1;
                 updateProductDisplay(); 
             });
         }
-        // --- MUDANÇA (FIM) ---
         
-        // Lógica de Rolagem
         const handleScroll=()=>{const s=window.scrollY,t=10;if(s>t){if(promoBanner)promoBanner.classList.add('hidden');if(mainHeader){mainHeader.classList.add('scrolled');mainHeader.classList.add('banner-hidden');}}else{if(promoBanner)promoBanner.classList.remove('hidden');if(mainHeader){mainHeader.classList.remove('scrolled');mainHeader.classList.remove('banner-hidden');}}};
         window.addEventListener('scroll',handleScroll);
         handleScroll();
         
-        console.log("Iniciado com sucesso.");
+        console.log("✅ Sistema iniciado com INTEGRAÇÃO WHATSAPP!");
     } 
 
     // --- 13. INICIAR ---
