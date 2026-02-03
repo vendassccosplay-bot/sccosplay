@@ -604,3 +604,33 @@ a { text-decoration: none; color: inherit; }
     cursor: not-allowed;
     background-color: var(--color-background-alt);
 }
+
+/* Estilo para o select de forma de pagamento */
+select#payment-method {
+    width: 100%;
+    padding: 10px;
+    background-color: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    color: var(--color-text);
+    font-family: var(--font-primary);
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+select#payment-method:focus {
+    border-color: var(--color-primary-purple);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(106, 17, 203, 0.2);
+}
+
+select#payment-method option {
+    padding: 10px;
+}
+
+/* Estado de erro para o select */
+.form-group select.invalid {
+    border-color: var(--color-error);
+    box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.2);
+}

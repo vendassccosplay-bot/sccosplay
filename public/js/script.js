@@ -1,16 +1,11 @@
 /*
  * SC COSPLAY - SCRIPT PRINCIPAL (MODIFICADO PARA WHATSAPP)
  * Versão: 10.3 - Integração WhatsApp Checkout
- * 
- * MUDANÇAS:
- * - Linha ~17: Adicionado WHATSAPP_NUMERO
- * - Função handleDeliverySubmit() TOTALMENTE MODIFICADA (linha ~550+)
- * - Agora envia dados para WhatsApp ao invés do Mercado Pago
  */
 document.addEventListener('DOMContentLoaded', () => {
 
     // --- 🟢 CONFIGURAÇÃO DO WHATSAPP (ADICIONE AQUI!) ---
-    const WHATSAPP_NUMERO = "5519999999999"; // ⚠️ MUDE PARA O NÚMERO REAL DA EMPRESA
+    const WHATSAPP_NUMERO = "551132285469"; // ⚠️ MUDE PARA O NÚMERO REAL DA EMPRESA
 
     // --- 1. CONFIGURAÇÃO DO SUPABASE ---
     const SUPABASE_URL = 'https://epfdigzbupmoyzlydmsu.supabase.co';
@@ -597,7 +592,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!deliveryForm || cart.length === 0) return;
 
         // --- 1. VALIDAÇÃO ---
-        const requiredInputs = deliveryForm.querySelectorAll('input[required]');
+        const requiredInputs = deliveryForm.querySelectorAll('input[required], select[required]');
         let valid = true;
         let firstInv = null;
         
@@ -642,10 +637,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const bairro = bairroInput.value;
         const cidade = cidadeInput.value;
         const estado = ufInput.value;
-        const formaPagamento = document.querySelector('input[name="payment-method"]:checked')?.value || 'Pix';
+        const formaPagamento = document.getElementById('payment-method')?.value || 'Não informado';
 
         // --- 3. MONTA A MENSAGEM DO WHATSAPP ---
-        let mensagem = '====== NOVO PEDIDO ======\n\n';
+        let mensagem = ' 🎉====== NOVO PEDIDO ======🎉 \n\n';
         
         // Adiciona os produtos
         let totalProdutos = 0;
@@ -679,6 +674,7 @@ document.addEventListener('DOMContentLoaded', () => {
         mensagem += `Estado (UF): ${estado}\n`;
         mensagem += `Forma de Pagamento: ${formaPagamento}\n\n`;
         mensagem += 'Pedido gerado pelo site. Aguardando sua confirmação!';
+        
 
         // --- 4. CODIFICA E ABRE O WHATSAPP ---
         const mensagemCodificada = encodeURIComponent(mensagem);
