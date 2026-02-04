@@ -588,124 +588,140 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // 🟢 --- FUNÇÃO TOTALMENTE MODIFICADA PARA WHATSAPP --- 🟢
     async function handleDeliverySubmit(event) {
-        event.preventDefault();
-        if (!deliveryForm || cart.length === 0) return;
+    event.preventDefault();
+    if (!deliveryForm || cart.length === 0) return;
 
-        // --- 1. VALIDAÇÃO ---
-        const requiredInputs = deliveryForm.querySelectorAll('input[required], select[required]');
-        let valid = true;
-        let firstInv = null;
-        
-        requiredInputs.forEach(i => {
-            i.classList.remove('invalid');
-            const e = i.closest('.form-group')?.querySelector('.error-message');
-            if (e) e.style.display = 'none';
-        });
-        
-        requiredInputs.forEach(i => {
-            let inv = !i.value.trim();
-            if (i.id === 'client-cep' && i.value.replace(/\D/g, '').length !== 8) inv = true;
-            if (inv) {
-                valid = false;
-                i.classList.add('invalid');
-                const e = i.closest('.form-group')?.querySelector('.error-message');
-                if (e) e.style.display = 'block';
-                if (!firstInv) firstInv = i;
-            }
-        });
-        
-        // Verifica se o frete foi calculado
-        if (freteCalculado <= 0) {
+    // --- 1. VALIDAÇÃO ---
+    const requiredInputs = deliveryForm.querySelectorAll('input[required], select[required]');
+    let valid = true;
+    let firstInv = null;
+    
+    requiredInputs.forEach(i => {
+        i.classList.remove('invalid');
+        const e = i.closest('.form-group')?.querySelector('.error-message');
+        if (e) e.style.display = 'none';
+    });
+    
+    requiredInputs.forEach(i => {
+        let inv = !i.value.trim();
+        if (i.id === 'client-cep' && i.value.replace(/\D/g, '').length !== 8) inv = true;
+        if (inv) {
             valid = false;
-            showNotification("Erro: O frete não foi calculado. Verifique o CEP.");
-            cepInput.classList.add('invalid');
-            if (!firstInv) firstInv = cepInput;
+            i.classList.add('invalid');
+            const e = i.closest('.form-group')?.querySelector('.error-message');
+            if (e) e.style.display = 'block';
+            if (!firstInv) firstInv = i;
         }
-        
-        if (!valid) {
-            showNotification("Corrija os campos destacados.");
-            firstInv?.focus();
+    });
+    
+    if (freteCalculado <= 0) {
+        valid = false;
+        showNotification("Erro: O frete não foi calculado. Verifique o CEP.");
+        cepInput.classList.add('invalid');
+        if (!firstInv) firstInv = cepInput;
+    }
+    
+    if (!valid) {
+        showNotification("Corrija os campos destacados.");
+        firstInv?.focus();
+        return;
+    }
+
+    // --- 2. CAPTURA DADOS DO FORMULÁRIO ---
+    const nomeCompleto = document.getElementById('client-name')?.value || '';
+    const cep = cepInput.value;
+    const endereco = addressInput.value;
+    const numero = numberInput.value;
+    const complemento = document.getElementById('client-complement')?.value || '';
+    const bairro = bairroInput.value;
+    const cidade = cidadeInput.value;
+    const estado = ufInput.value;
+    const formaPagamento = document.getElementById('payment-method')?.value || 'Não informado';
+
+    // 🟢 SALVA OS DADOS NO LOCALSTORAGE PARA USAR DEPOIS DO PAGAMENTO
+    const dadosPedido = {
+        nomeCompleto,
+        cep,
+        endereco,
+        numero,
+        complemento,
+        bairro,
+        cidade,
+        estado,
+        formaPagamento,
+        frete: freteCalculado,
+        freteServico: freteServico
+    };
+    
+    localStorage.setItem('dadosPedido', JSON.stringify(dadosPedido));
+    
+    const carrinhoBackup = cart.map(item => {
+        const produto = allProducts.find(p => p.id == item.id);
+        return {
+            nome: produto?.name || 'Produto',
+            tamanho: item.size,
+            preco: (produto?.price || 0).toFixed(2).replace('.', ',')
+        };
+    });
+    localStorage.setItem('carrinhoBackup', JSON.stringify(carrinhoBackup));
+
+    // --- 3. PREPARAÇÃO DOS DADOS PARA O MERCADO PAGO ---
+    const mpItems = cart.map(item => {
+        const p = allProducts.find(prod => prod.id == item.id);
+        return {
+            id: String(p.id),
+            title: `${p.name} (Tam: ${item.size})`,
+            quantity: 1,
+            unit_price: p.price,
+            currency_id: 'BRL'
+        };
+    });
+    
+    const checkoutData = {
+        items: mpItems,
+        frete: freteCalculado,
+        freteServico: freteServico
+    };
+
+    const confirmBtn = deliveryForm.querySelector('.confirm-order-btn');
+    const originalText = confirmBtn.innerHTML;
+    confirmBtn.disabled = true;
+    confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Criando Pagamento...';
+
+    // --- 4. CHAMADA AO BACKEND (MERCADO PAGO) ---
+    try {
+        const response = await fetch('/.netlify/functions/criar-pagamento', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(checkoutData)
+        });
+
+        if (!response.ok) {
+            let errorData = { error: "Erro desconhecido no servidor" };
+            try { errorData = await response.json(); } catch (e) { /* ignora */ }
+            console.error('Erro no backend Netlify/MP:', errorData.error);
+            showNotification(`Erro ao criar pagamento: ${errorData.error}`);
             return;
         }
 
-        // --- 2. CAPTURA DADOS DO FORMULÁRIO ---
-        const nomeCompleto = document.getElementById('client-name')?.value || '';
-        const cep = cepInput.value;
-        const endereco = addressInput.value;
-        const numero = numberInput.value;
-        const complemento = document.getElementById('client-complement')?.value || '';
-        const bairro = bairroInput.value;
-        const cidade = cidadeInput.value;
-        const estado = ufInput.value;
-        const formaPagamento = document.getElementById('payment-method')?.value || 'Não informado';
-
-        // --- 3. MONTA A MENSAGEM DO WHATSAPP ---
-        let mensagem = ' 🎉====== NOVO PEDIDO ======🎉 \n\n';
+        const data = await response.json();
         
-        // Adiciona os produtos
-        let totalProdutos = 0;
-        cart.forEach(item => {
-            const produto = allProducts.find(p => p.id == item.id);
-            if (produto) {
-                mensagem += `${produto.name} (Tam: ${item.size})\n`;
-                mensagem += `R$ ${produto.price.toFixed(2).replace('.', ',')}\n\n`;
-                totalProdutos += produto.price;
-            }
-        });
-        
-        // Total do pedido
-        const totalComFrete = totalProdutos + freteCalculado;
-        mensagem += `SUBTOTAL: R$ ${totalProdutos.toFixed(2).replace('.', ',')}\n`;
-        mensagem += `FRETE (${freteServico}): R$ ${freteCalculado.toFixed(2).replace('.', ',')}\n`;
-        mensagem += `TOTAL DO PEDIDO: R$ ${totalComFrete.toFixed(2).replace('.', ',')}\n`;
-        mensagem += `Total de Itens: ${cart.length}\n\n`;
-        
-        // Dados do cliente
-        mensagem += '====== DADOS DO CLIENTE ======\n\n';
-        mensagem += `Nome Completo: ${nomeCompleto}\n`;
-        mensagem += `CEP: ${cep}\n`;
-        mensagem += `Endereço (Rua): ${endereco}\n`;
-        mensagem += `Número: ${numero}\n`;
-        if (complemento) {
-            mensagem += `Complemento: ${complemento}\n`;
-        }
-        mensagem += `Bairro: ${bairro}\n`;
-        mensagem += `Cidade: ${cidade}\n`;
-        mensagem += `Estado (UF): ${estado}\n`;
-        mensagem += `Forma de Pagamento: ${formaPagamento}\n\n`;
-        mensagem += 'Pedido gerado pelo site. Aguardando sua confirmação!';
-        
-
-        // --- 4. CODIFICA E ABRE O WHATSAPP ---
-        const mensagemCodificada = encodeURIComponent(mensagem);
-        const linkWhatsApp = `https://wa.me/${WHATSAPP_NUMERO}?text=${mensagemCodificada}`;
-
-        // Feedback visual
-        const confirmBtn = deliveryForm.querySelector('.confirm-order-btn');
-        const originalText = confirmBtn.innerHTML;
-        confirmBtn.disabled = true;
-        confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Redirecionando...';
-
-        // Abre o WhatsApp
-        setTimeout(() => {
-            window.open(linkWhatsApp, '_blank');
-            
-            // Limpa o carrinho
-            cart = [];
-            saveCart();
-            updateCartCount();
-            
-            // Fecha o modal
+        if (data.redirectUrl) {
+            showNotification("Redirecionando para o pagamento...");
             closeDeliveryModal();
             deliveryForm.reset();
-            
-            // Notificação
-            showNotification("Redirecionando para o WhatsApp...");
-            
-            // Restaura o botão
-            confirmBtn.disabled = false;
-            confirmBtn.innerHTML = originalText;
-        }, 500);
+            window.location.href = data.redirectUrl;
+        } else {
+            showNotification("Erro inesperado: URL de Checkout não recebida.");
+        }
+
+    } catch (e) {
+        console.error('Erro de conexão total (rede/servidor):', e);
+        showNotification("Erro de conexão. Verifique sua internet.");
+    } finally {
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = originalText;
+    }
     }
     // 🟢 --- FIM DA MODIFICAÇÃO --- 🟢
 
