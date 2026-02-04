@@ -661,7 +661,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return {
                 nome: produto?.name || 'Produto',
                 tamanho: item.size,
-                preco: (produto?.price || 0).toFixed(2).replace('.', ',')
+                preco: (produto?.price || 0).toFixed(2).replace('.', ','),
+                descricao: produto?.description || ''
             };
         });
         localStorage.setItem('carrinhoBackup', JSON.stringify(carrinhoBackup));
