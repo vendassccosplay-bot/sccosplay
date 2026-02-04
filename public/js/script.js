@@ -17,11 +17,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentFilteredProducts = [];
     let currentPage = 1;
     const productsPerPage = 8;
-    let cart = []; 
+    let cart = [];
     let favorites = [];
-    let freteCalculado = 0; 
-    let freteServico = ''; 
-    let isCalculatingFrete = false; 
+    let freteCalculado = 0;
+    let freteServico = '';
+    let isCalculatingFrete = false;
     let isShowingFavorites = false;
 
     // --- 3. SELETORES DO DOM ---
@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const cartIcon = document.getElementById('cart-icon');
     const cartCount = document.getElementById('cart-count');
     const productGrid = document.getElementById('product-grid');
-    const productSection = document.getElementById('product-section'); 
+    const productSection = document.getElementById('product-section');
     const productGridWrapper = document.getElementById('product-grid-wrapper');
     const loadMoreContainer = document.getElementById('load-more-container');
     const loadMoreBtn = document.getElementById('load-more-btn');
@@ -103,14 +103,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (err) { console.error("Erro na função loadHeroAndTheme:", err); }
     }
-    
+
     async function fetchProducts() {
         if (!supabaseClient) throw new Error("Cliente Supabase não inicializado.");
         console.log("Buscando produtos...");
         try {
             let { data, error, status } = await supabaseClient
                 .from('products')
-                .select('id, name, price, stock, rating, description, category, image, peso, altura, largura, comprimento, galeria') 
+                .select('id, name, price, stock, rating, description, category, image, peso, altura, largura, comprimento, galeria')
                 .order('id', { ascending: true });
 
             if (error) {
@@ -127,11 +127,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!categoryFilters || !sortFilter || !productGrid) return;
         const headerTerm = headerSearchInput ? headerSearchInput.value.toLowerCase() : '';
         const sectionTerm = sectionSearchInput ? sectionSearchInput.value.toLowerCase() : '';
-        const searchTerm = sectionTerm || headerTerm; 
+        const searchTerm = sectionTerm || headerTerm;
         const activeCategoryButton = categoryFilters.querySelector('.category-btn.active');
         const activeCategory = activeCategoryButton ? activeCategoryButton.dataset.category : 'all';
         const sortBy = sortFilter.value;
-        
+
         let filteredProducts = [...allProducts];
 
         if (activeCategory !== 'all') {
@@ -151,16 +151,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         currentFilteredProducts = filteredProducts;
         currentPage = 1;
-        
+
         if (paginacaoContainer) {
             paginacaoContainer.classList.remove('visible');
         }
-        
+
         productGridWrapper.classList.remove('expanded');
 
         const pageProducts = currentFilteredProducts.slice(0, productsPerPage);
         renderProducts(pageProducts);
-        
+
         if (currentFilteredProducts.length <= productsPerPage) {
             productGridWrapper.classList.add('expanded');
             if (loadMoreContainer) {
@@ -173,11 +173,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
-    
+
     function renderProducts(productsToRender) {
         if (!productGrid) return;
         productGrid.innerHTML = '';
-        if (productsToRender.length === 0) { 
+        if (productsToRender.length === 0) {
             if (isShowingFavorites) {
                 productGrid.innerHTML = '<p style="text-align:center; color:#888; grid-column: 1 / -1;">Você ainda não favoritou nenhum produto.</p>';
             } else {
@@ -194,12 +194,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const productImage = product.image || 'img/placeholder.png';
             const productPrice = (product.price || 0).toFixed(2).replace('.', ',');
             const productRating = product.rating || 0;
-            const availableSizes = ['P', 'M', 'G', 'G1', 'G2', 'G3']; 
+            const availableSizes = ['P', 'M', 'G', 'G1', 'G2', 'G3'];
             const sizeBadgesHTML = availableSizes.map(size => `<span class="size-badge">${size}</span>`).join('');
-            
+
             const ratingStarsHTML = Array(5).fill(0).map((_, i) => `<i class="${i < Math.round(productRating) ? 'fas' : 'far'} fa-star"></i>`).join('');
             const ratingNumberHTML = productRating > 0 ? `<span class="rating-number">${productRating.toFixed(1)}</span>` : '';
-            
+
             card.innerHTML = `
                 <div class="product-image-wrapper">
                     <img src="${productImage}" alt="${productName}" class="product-image" loading="lazy" width="300" height="300">
@@ -228,9 +228,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const inicio = (currentPage - 1) * productsPerPage;
         const fim = inicio + productsPerPage;
-        
+
         const pageProducts = currentFilteredProducts.slice(inicio, fim);
-        
+
         renderProducts(pageProducts);
         setupPaginationControls();
 
@@ -315,14 +315,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!product || !productModalOverlay) { console.warn(`Produto ${productId} não encontrado.`); return; }
         if (!product.stock || product.stock <= 0) { showNotification("Esgotado!"); return };
 
-        const productName = product.name || '?'; 
+        const productName = product.name || '?';
         const productPrice = (product.price || 0).toFixed(2).replace('.', ',');
-        const productImage = product.image || 'img/placeholder.png'; 
+        const productImage = product.image || 'img/placeholder.png';
         const productDescription = product.description || '';
-        const productRating = product.rating || 0; 
-        
+        const productRating = product.rating || 0;
+
         const ratingStarsHTML = Array(5).fill(0).map((_, i) => `<i class="${i < Math.round(productRating) ? 'fas' : 'far'} fa-star"></i>`).join('');
-        
+
         let galleryImages = [productImage];
         if (product.galeria && Array.isArray(product.galeria)) {
             galleryImages = galleryImages.concat(product.galeria);
@@ -337,7 +337,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <img src="${productImage}" alt="${productName}" id="modal-product-image" class="carousel-main-image" onerror="this.onerror=null;this.src='img/placeholder.png';">
                         <div class="image-thumbnails">
                             ${galleryImages.map((img, index) => `
-                                <img src="${img}" alt="Thumbnail ${index+1}" class="thumbnail-image" data-index="${index}" onclick="document.getElementById('modal-product-image').src='${img}'" onerror="this.onerror=null;this.src='img/placeholder.png'" />
+                                <img src="${img}" alt="Thumbnail ${index + 1}" class="thumbnail-image" data-index="${index}" onclick="document.getElementById('modal-product-image').src='${img}'" onerror="this.onerror=null;this.src='img/placeholder.png'" />
                             `).join('')}
                         </div>
                     </div>
@@ -367,16 +367,16 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>`;
         productModalOverlay.innerHTML = modalHTML;
         productModalOverlay.classList.add('active');
-        const closeBtn = document.getElementById('dynamic-close-product'); 
+        const closeBtn = document.getElementById('dynamic-close-product');
         const addBtn = document.getElementById('dynamic-add-to-cart');
         if (closeBtn) closeBtn.addEventListener('click', closeProductModal);
         if (addBtn) {
-            addBtn.addEventListener('click', (e) => { 
-                const id = Number(e.target.dataset.id); 
-                const selectedSizeInput = document.querySelector(`input[name='product-size-${id}']:checked`); 
-                if (selectedSizeInput) { 
-                    addToCart(id, selectedSizeInput.value); 
-                    closeProductModal(); 
+            addBtn.addEventListener('click', (e) => {
+                const id = Number(e.target.dataset.id);
+                const selectedSizeInput = document.querySelector(`input[name='product-size-${id}']:checked`);
+                if (selectedSizeInput) {
+                    addToCart(id, selectedSizeInput.value);
+                    closeProductModal();
                 } else {
                     showNotification("Selecione um tamanho!");
                 }
@@ -384,71 +384,71 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     function closeProductModal() { if (productModalOverlay) { productModalOverlay.classList.remove('active'); productModalOverlay.innerHTML = ''; } }
-    
+
     function openCartModal() {
         if (!cartModalOverlay) return;
         const modalHTML = `<div class="cart-modal"><div class="cart-modal-header"><h3>Seu Carrinho</h3><button class="close-modal-btn" id="dynamic-close-cart">&times;</button></div><div class="cart-modal-body" id="cart-items-container"></div><div class="cart-modal-footer"><div class="cart-total"><strong>Total:</strong><span id="cart-total-price">R$ 0,00</span></div><button class="checkout-btn" id="dynamic-checkout-btn"><i class="fas fa-credit-card"></i>Finalizar Pedido</button></div></div>`;
         cartModalOverlay.innerHTML = modalHTML; cartModalOverlay.classList.add('modal-overlay'); cartModalOverlay.classList.add('active'); renderCartItems();
         const cBtn = document.getElementById('dynamic-close-cart'); const oBtn = document.getElementById('dynamic-checkout-btn'); const iCont = document.getElementById('cart-items-container');
-        if(cBtn) cBtn.addEventListener('click', closeCartModal); if(oBtn) oBtn.addEventListener('click', () => { if (cart.length > 0) { closeCartModal(); openDeliveryModal(); } }); if(iCont) iCont.addEventListener('click', (e) => { if (e.target.classList.contains('remove-item-btn')) removeFromCart(Number(e.target.dataset.cartid)); });
+        if (cBtn) cBtn.addEventListener('click', closeCartModal); if (oBtn) oBtn.addEventListener('click', () => { if (cart.length > 0) { closeCartModal(); openDeliveryModal(); } }); if (iCont) iCont.addEventListener('click', (e) => { if (e.target.classList.contains('remove-item-btn')) removeFromCart(Number(e.target.dataset.cartid)); });
     }
     function closeCartModal() { if (cartModalOverlay) { cartModalOverlay.classList.remove('active'); cartModalOverlay.classList.remove('modal-overlay'); cartModalOverlay.innerHTML = ''; } }
 
     // --- 7. FUNÇÕES DE LÓGICA DO CARRINHO ---
     function renderCartItems() {
-        const cont = document.getElementById('cart-items-container'); 
-        const totEl = document.getElementById('cart-total-price'); 
-        const chkBtn = document.getElementById('dynamic-checkout-btn'); 
-        if (!cont || !totEl || !chkBtn) return; 
-        
-        cont.innerHTML = ''; 
+        const cont = document.getElementById('cart-items-container');
+        const totEl = document.getElementById('cart-total-price');
+        const chkBtn = document.getElementById('dynamic-checkout-btn');
+        if (!cont || !totEl || !chkBtn) return;
+
+        cont.innerHTML = '';
         let total = 0;
-        
-        if (cart.length === 0) { 
-            cont.innerHTML = '<p style="text-align:center; color:#888; grid-column: 1 / -1;">Carrinho vazio.</p>'; 
-            chkBtn.disabled = true; 
-            chkBtn.style.backgroundColor = '#555'; 
-        } else { 
-            cart.forEach(item => { 
+
+        if (cart.length === 0) {
+            cont.innerHTML = '<p style="text-align:center; color:#888; grid-column: 1 / -1;">Carrinho vazio.</p>';
+            chkBtn.disabled = true;
+            chkBtn.style.backgroundColor = '#555';
+        } else {
+            cart.forEach(item => {
                 const p = allProducts.find(prod => prod.id == item.id);
-                if (!p) return; 
-                
-                total += (p.price || 0); 
-                const img = p.image || 'img/placeholder.png'; 
-                const name = p.name || '?'; 
-                const price = (p.price || 0).toFixed(2).replace('.', ','); 
-                const size = item.size || '?'; 
-                
-                cont.innerHTML += `<div class="cart-item"><img src="${img}" alt="${name}" class="cart-item-image" onerror="this.onerror=null;this.src='img/placeholder.png';"><div class="cart-item-details"><p class="cart-item-name">${name} <strong>(Tam: ${size})</strong></p><p class="cart-item-price">R$ ${price}</p></div><button class="remove-item-btn" data-cartid="${item.cartId}">&times;</button></div>`; 
-            }); 
-            chkBtn.disabled = false; 
-            chkBtn.style.backgroundColor = '#25D366'; 
+                if (!p) return;
+
+                total += (p.price || 0);
+                const img = p.image || 'img/placeholder.png';
+                const name = p.name || '?';
+                const price = (p.price || 0).toFixed(2).replace('.', ',');
+                const size = item.size || '?';
+
+                cont.innerHTML += `<div class="cart-item"><img src="${img}" alt="${name}" class="cart-item-image" onerror="this.onerror=null;this.src='img/placeholder.png';"><div class="cart-item-details"><p class="cart-item-name">${name} <strong>(Tam: ${size})</strong></p><p class="cart-item-price">R$ ${price}</p></div><button class="remove-item-btn" data-cartid="${item.cartId}">&times;</button></div>`;
+            });
+            chkBtn.disabled = false;
+            chkBtn.style.backgroundColor = '#25D366';
         }
-        totEl.textContent = `R$ ${total.toFixed(2).replace('.', ',')}`; 
+        totEl.textContent = `R$ ${total.toFixed(2).replace('.', ',')}`;
         updateCartCount();
     }
-    
-    function addToCart(productId, size) { 
-        const p = allProducts.find(p => p.id == productId); 
-        if (p) { 
-            cart.push({ id: p.id, size: size, cartId: Date.now() }); 
-            saveCart(); 
-            updateCartCount(); 
-            showNotification(`'${p.name || '?'}' (Tam: ${size}) adicionado!`); 
-        } else { 
-            showNotification("Erro ao adicionar."); 
-            console.error(`Produto ${productId} não encontrado.`); 
-        } 
+
+    function addToCart(productId, size) {
+        const p = allProducts.find(p => p.id == productId);
+        if (p) {
+            cart.push({ id: p.id, size: size, cartId: Date.now() });
+            saveCart();
+            updateCartCount();
+            showNotification(`'${p.name || '?'}' (Tam: ${size}) adicionado!`);
+        } else {
+            showNotification("Erro ao adicionar.");
+            console.error(`Produto ${productId} não encontrado.`);
+        }
     }
-    
-    function removeFromCart(cartId) { 
-        cart = cart.filter(item => item.cartId !== cartId); 
-        saveCart(); 
-        renderCartItems(); 
+
+    function removeFromCart(cartId) {
+        cart = cart.filter(item => item.cartId !== cartId);
+        saveCart();
+        renderCartItems();
     }
-    
-    function updateCartCount() { 
-        if(cartCount) cartCount.textContent = cart.length; 
+
+    function updateCartCount() {
+        if (cartCount) cartCount.textContent = cart.length;
     }
 
     // --- 8. FUNÇÕES DE PERSISTÊNCIA ---
@@ -458,86 +458,86 @@ document.addEventListener('DOMContentLoaded', () => {
     function loadFavorites() { try { const f = localStorage.getItem('scCosplayFavorites'); if (f) { favorites = JSON.parse(f); if (!Array.isArray(favorites)) favorites = []; } } catch (e) { console.error("Erro loadFavorites:", e); favorites = []; } }
 
     // --- 9. FUNÇÕES DO MODAL DE ENTREGA, CHECKOUT E BUSCA CEP ---
-    function openDeliveryModal() { 
-        clearAddressFields(false); 
-        if(deliveryModalOverlay) deliveryModalOverlay.classList.add('active'); 
+    function openDeliveryModal() {
+        clearAddressFields(false);
+        if (deliveryModalOverlay) deliveryModalOverlay.classList.add('active');
     }
-    function closeDeliveryModal() { 
-        if(deliveryModalOverlay) deliveryModalOverlay.classList.remove('active'); 
+    function closeDeliveryModal() {
+        if (deliveryModalOverlay) deliveryModalOverlay.classList.remove('active');
     }
-    
-    function clearAddressFields(clearCepToo = true) { 
-        const flds = [addressInput, numberInput, bairroInput, cidadeInput, ufInput]; 
-        flds.forEach(i => { if(i){i.value='';i.readOnly=true;i.style.cursor='not-allowed';i.classList.remove('invalid');const e=i.closest('.form-group')?.querySelector('.error-message');if(e)e.style.display='none';}}); 
-        if(cepStatus)cepStatus.textContent=''; 
-        if(cepSpinner)cepSpinner.style.display='none'; 
-        
-        if(freteInfoBox) freteInfoBox.style.display = 'none';
-        freteInfoText.textContent = '';
-        freteCalculado = 0; 
-        freteServico = '';
-        
-        if(clearCepToo&&cepInput){cepInput.value='';cepInput.classList.remove('invalid');const e=cepInput.closest('.form-group')?.querySelector('.error-message');if(e)e.style.display='none';} 
-        const comp=document.getElementById('client-complement'); if(comp)comp.value=''; 
-    }
-    
-    function formatCEP(cep) { 
-        const d=cep.replace(/\D/g,''); 
-        return d.length>5?d.slice(0,5)+'-'+d.slice(5,8):d; 
-    }
-    
-    async function buscaCEP() { 
-        if (!cepInput || !cepStatus || !cepSpinner) return; 
-        if (isCalculatingFrete) return; 
 
-        const cv = cepInput.value.replace(/\D/g,''); 
-        
-        clearAddressFields(false); 
-        cepInput.value = formatCEP(cv); 
-        
-        if(cv.length!==8){
-            if(cepInput.value.length>0) cepStatus.textContent='CEP inválido.'; 
+    function clearAddressFields(clearCepToo = true) {
+        const flds = [addressInput, numberInput, bairroInput, cidadeInput, ufInput];
+        flds.forEach(i => { if (i) { i.value = ''; i.readOnly = true; i.style.cursor = 'not-allowed'; i.classList.remove('invalid'); const e = i.closest('.form-group')?.querySelector('.error-message'); if (e) e.style.display = 'none'; } });
+        if (cepStatus) cepStatus.textContent = '';
+        if (cepSpinner) cepSpinner.style.display = 'none';
+
+        if (freteInfoBox) freteInfoBox.style.display = 'none';
+        freteInfoText.textContent = '';
+        freteCalculado = 0;
+        freteServico = '';
+
+        if (clearCepToo && cepInput) { cepInput.value = ''; cepInput.classList.remove('invalid'); const e = cepInput.closest('.form-group')?.querySelector('.error-message'); if (e) e.style.display = 'none'; }
+        const comp = document.getElementById('client-complement'); if (comp) comp.value = '';
+    }
+
+    function formatCEP(cep) {
+        const d = cep.replace(/\D/g, '');
+        return d.length > 5 ? d.slice(0, 5) + '-' + d.slice(5, 8) : d;
+    }
+
+    async function buscaCEP() {
+        if (!cepInput || !cepStatus || !cepSpinner) return;
+        if (isCalculatingFrete) return;
+
+        const cv = cepInput.value.replace(/\D/g, '');
+
+        clearAddressFields(false);
+        cepInput.value = formatCEP(cv);
+
+        if (cv.length !== 8) {
+            if (cepInput.value.length > 0) cepStatus.textContent = 'CEP inválido.';
             return;
-        } 
-        
-        cepSpinner.style.display='inline-block'; 
-        cepStatus.textContent=''; 
-        
-        try { 
-            const r = await fetch(`https://brasilapi.com.br/api/cep/v1/${cv}`); 
-            if(!r.ok) {
+        }
+
+        cepSpinner.style.display = 'inline-block';
+        cepStatus.textContent = '';
+
+        try {
+            const r = await fetch(`https://brasilapi.com.br/api/cep/v1/${cv}`);
+            if (!r.ok) {
                 if (r.status === 404) throw new Error('CEP não encontrado');
                 throw new Error('Erro ao buscar CEP');
             }
-            const d = await r.json(); 
-            
-            cepInput.classList.remove('invalid'); 
-            
-            if(addressInput) addressInput.value = d.street || '';
-            if(bairroInput) bairroInput.value = d.neighborhood || ''; 
-            if(cidadeInput) cidadeInput.value = d.city || ''; 
-            if(ufInput) ufInput.value = d.state || ''; 
+            const d = await r.json();
 
-            [addressInput,bairroInput,cidadeInput,ufInput,numberInput].forEach(i=>{if(i){i.readOnly=false;i.style.cursor='text';}}); 
-            cepStatus.textContent='Endereço OK!'; 
-            
-            calcularFrete(cv); 
-            
-            if(numberInput) numberInput.focus();
-            
-        } catch(e){ 
-            console.error("Erro CEP:",e); 
+            cepInput.classList.remove('invalid');
+
+            if (addressInput) addressInput.value = d.street || '';
+            if (bairroInput) bairroInput.value = d.neighborhood || '';
+            if (cidadeInput) cidadeInput.value = d.city || '';
+            if (ufInput) ufInput.value = d.state || '';
+
+            [addressInput, bairroInput, cidadeInput, ufInput, numberInput].forEach(i => { if (i) { i.readOnly = false; i.style.cursor = 'text'; } });
+            cepStatus.textContent = 'Endereço OK!';
+
+            calcularFrete(cv);
+
+            if (numberInput) numberInput.focus();
+
+        } catch (e) {
+            console.error("Erro CEP:", e);
             if (e.message.includes('CEP não encontrado')) {
                 cepStatus.textContent = 'CEP não encontrado.';
             } else {
-                cepStatus.textContent = 'Erro ao buscar.'; 
+                cepStatus.textContent = 'Erro ao buscar.';
             }
             cepInput.classList.add('invalid');
         } finally {
-            cepSpinner.style.display='none'; 
+            cepSpinner.style.display = 'none';
         }
     }
-    
+
     async function calcularFrete(cepDestino) {
         if (!freteInfoBox || !freteInfoText || isCalculatingFrete) return;
 
@@ -546,11 +546,11 @@ document.addEventListener('DOMContentLoaded', () => {
         freteInfoBox.className = 'frete-info-box combinar';
         freteInfoBox.style.display = 'block';
         freteCalculado = 0;
-        freteServico = ''; 
+        freteServico = '';
 
         const cartItemsData = cart.map(item => {
             return allProducts.find(p => p.id == item.id);
-        }).filter(p => p != null); 
+        }).filter(p => p != null);
 
         try {
             const response = await fetch('/.netlify/functions/calcular-frete', {
@@ -558,7 +558,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     cepDestino: cepDestino,
-                    items: cartItemsData 
+                    items: cartItemsData
                 })
             });
 
@@ -567,13 +567,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(errData.error || "Erro no servidor de frete");
             }
 
-            const frete = await response.json(); 
-            
+            const frete = await response.json();
+
             freteCalculado = frete.valor;
             freteServico = frete.servico;
-            
+
             freteInfoText.textContent = `Frete (${frete.servico}): R$ ${frete.valor.toFixed(2)}`;
-            freteInfoBox.className = 'frete-info-box gratis'; 
+            freteInfoBox.className = 'frete-info-box gratis';
 
         } catch (error) {
             console.error('Erro ao calcular frete:', error);
@@ -585,168 +585,182 @@ document.addEventListener('DOMContentLoaded', () => {
             isCalculatingFrete = false;
         }
     }
-    
+
     // 🟢 --- FUNÇÃO TOTALMENTE MODIFICADA PARA WHATSAPP --- 🟢
     async function handleDeliverySubmit(event) {
-    event.preventDefault();
-    if (!deliveryForm || cart.length === 0) return;
+        event.preventDefault();
+        if (!deliveryForm || cart.length === 0) return;
 
-    // --- 1. VALIDAÇÃO ---
-    const requiredInputs = deliveryForm.querySelectorAll('input[required], select[required]');
-    let valid = true;
-    let firstInv = null;
-    
-    requiredInputs.forEach(i => {
-        i.classList.remove('invalid');
-        const e = i.closest('.form-group')?.querySelector('.error-message');
-        if (e) e.style.display = 'none';
-    });
-    
-    requiredInputs.forEach(i => {
-        let inv = !i.value.trim();
-        if (i.id === 'client-cep' && i.value.replace(/\D/g, '').length !== 8) inv = true;
-        if (inv) {
-            valid = false;
-            i.classList.add('invalid');
+        // --- 1. VALIDAÇÃO ---
+        const requiredInputs = deliveryForm.querySelectorAll('input[required], select[required]');
+        let valid = true;
+        let firstInv = null;
+
+        requiredInputs.forEach(i => {
+            i.classList.remove('invalid');
             const e = i.closest('.form-group')?.querySelector('.error-message');
-            if (e) e.style.display = 'block';
-            if (!firstInv) firstInv = i;
-        }
-    });
-    
-    if (freteCalculado <= 0) {
-        valid = false;
-        showNotification("Erro: O frete não foi calculado. Verifique o CEP.");
-        cepInput.classList.add('invalid');
-        if (!firstInv) firstInv = cepInput;
-    }
-    
-    if (!valid) {
-        showNotification("Corrija os campos destacados.");
-        firstInv?.focus();
-        return;
-    }
-
-    // --- 2. CAPTURA DADOS DO FORMULÁRIO ---
-    const nomeCompleto = document.getElementById('client-name')?.value || '';
-    const cep = cepInput.value;
-    const endereco = addressInput.value;
-    const numero = numberInput.value;
-    const complemento = document.getElementById('client-complement')?.value || '';
-    const bairro = bairroInput.value;
-    const cidade = cidadeInput.value;
-    const estado = ufInput.value;
-    const formaPagamento = document.getElementById('payment-method')?.value || 'Não informado';
-
-    // 🟢 SALVA OS DADOS NO LOCALSTORAGE PARA USAR DEPOIS DO PAGAMENTO
-    const dadosPedido = {
-        nomeCompleto,
-        cep,
-        endereco,
-        numero,
-        complemento,
-        bairro,
-        cidade,
-        estado,
-        formaPagamento,
-        frete: freteCalculado,
-        freteServico: freteServico
-    };
-    
-    localStorage.setItem('dadosPedido', JSON.stringify(dadosPedido));
-    
-    const carrinhoBackup = cart.map(item => {
-        const produto = allProducts.find(p => p.id == item.id);
-        return {
-            nome: produto?.name || 'Produto',
-            tamanho: item.size,
-            preco: (produto?.price || 0).toFixed(2).replace('.', ',')
-        };
-    });
-    localStorage.setItem('carrinhoBackup', JSON.stringify(carrinhoBackup));
-
-    // --- 3. PREPARAÇÃO DOS DADOS PARA O MERCADO PAGO ---
-    const mpItems = cart.map(item => {
-        const p = allProducts.find(prod => prod.id == item.id);
-        return {
-            id: String(p.id),
-            title: `${p.name} (Tam: ${item.size})`,
-            quantity: 1,
-            unit_price: p.price,
-            currency_id: 'BRL'
-        };
-    });
-    
-    const checkoutData = {
-        items: mpItems,
-        frete: freteCalculado,
-        freteServico: freteServico
-    };
-
-    const confirmBtn = deliveryForm.querySelector('.confirm-order-btn');
-    const originalText = confirmBtn.innerHTML;
-    confirmBtn.disabled = true;
-    confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Criando Pagamento...';
-
-    // --- 4. CHAMADA AO BACKEND (MERCADO PAGO) ---
-    try {
-        const response = await fetch('/.netlify/functions/criar-pagamento', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(checkoutData)
+            if (e) e.style.display = 'none';
         });
 
-        if (!response.ok) {
-            let errorData = { error: "Erro desconhecido no servidor" };
-            try { errorData = await response.json(); } catch (e) { /* ignora */ }
-            console.error('Erro no backend Netlify/MP:', errorData.error);
-            showNotification(`Erro ao criar pagamento: ${errorData.error}`);
+        requiredInputs.forEach(i => {
+            let inv = !i.value.trim();
+            if (i.id === 'client-cep' && i.value.replace(/\D/g, '').length !== 8) inv = true;
+            if (inv) {
+                valid = false;
+                i.classList.add('invalid');
+                const e = i.closest('.form-group')?.querySelector('.error-message');
+                if (e) e.style.display = 'block';
+                if (!firstInv) firstInv = i;
+            }
+        });
+
+        // Permitir frete = 0 se for retirada ou promoção
+        if (freteCalculado === undefined || freteCalculado === null) {
+            valid = false;
+            showNotification("Erro: O frete não foi calculado. Verifique o CEP.");
+            cepInput.classList.add('invalid');
+            if (!firstInv) firstInv = cepInput;
+        }
+
+        if (!valid) {
+            showNotification("Corrija os campos destacados.");
+            firstInv?.focus();
             return;
         }
 
-        const data = await response.json();
-        
-        if (data.redirectUrl) {
-            showNotification("Redirecionando para o pagamento...");
-            closeDeliveryModal();
-            deliveryForm.reset();
-            window.location.href = data.redirectUrl;
-        } else {
-            showNotification("Erro inesperado: URL de Checkout não recebida.");
-        }
+        // --- 2. CAPTURA DADOS DO FORMULÁRIO ---
+        const nomeCompleto = document.getElementById('client-name')?.value || '';
+        const cep = cepInput.value;
+        const endereco = addressInput.value;
+        const numero = numberInput.value;
+        const complemento = document.getElementById('client-complement')?.value || '';
+        const bairro = bairroInput.value;
+        const cidade = cidadeInput.value;
+        const estado = ufInput.value;
+        const formaPagamento = document.getElementById('payment-method')?.value || 'Não informado';
 
-    } catch (e) {
-        console.error('Erro de conexão total (rede/servidor):', e);
-        showNotification("Erro de conexão. Verifique sua internet.");
-    } finally {
-        confirmBtn.disabled = false;
-        confirmBtn.innerHTML = originalText;
-    }
+        // 🟢 SALVA OS DADOS NO LOCALSTORAGE PARA USAR DEPOIS DO PAGAMENTO
+        const dadosPedido = {
+            nomeCompleto,
+            cep,
+            endereco,
+            numero,
+            complemento,
+            bairro,
+            cidade,
+            estado,
+            formaPagamento,
+            frete: freteCalculado,
+            freteServico: freteServico
+        };
+
+        localStorage.setItem('dadosPedido', JSON.stringify(dadosPedido));
+
+        const carrinhoBackup = cart.map(item => {
+            const produto = allProducts.find(p => p.id == item.id);
+            return {
+                nome: produto?.name || 'Produto',
+                tamanho: item.size,
+                preco: (produto?.price || 0).toFixed(2).replace('.', ',')
+            };
+        });
+        localStorage.setItem('carrinhoBackup', JSON.stringify(carrinhoBackup));
+
+        // --- 3. PREPARAÇÃO DOS DADOS PARA O MERCADO PAGO ---
+        const mpItems = cart.map(item => {
+            const p = allProducts.find(prod => prod.id == item.id);
+            return {
+                id: String(p.id),
+                title: `${p.name} (Tam: ${item.size})`,
+                quantity: 1,
+                unit_price: p.price,
+                currency_id: 'BRL'
+            };
+        });
+
+        const checkoutData = {
+            items: mpItems,
+            frete: freteCalculado,
+            freteServico: freteServico
+        };
+
+        const confirmBtn = deliveryForm.querySelector('.confirm-order-btn');
+        const originalText = confirmBtn.innerHTML;
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Criando Pagamento...';
+
+        // --- 4. CHAMADA AO BACKEND (MERCADO PAGO) ---
+        try {
+            const response = await fetch('/.netlify/functions/criar-pagamento', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(checkoutData)
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                console.error('Erro no backend Netlify/MP:', data);
+
+                let msg = data.error || "Erro ao conectar com servidor";
+                if (data.details) msg += ` (${data.details})`;
+
+                showNotification(`Erro: ${msg}`);
+
+                // Log mais visível para o usuário se for erro de token
+                if (msg.includes("Token")) {
+                    alert("Erro de Configuração: O Token do Mercado Pago não está configurado no servidor.");
+                }
+                return;
+            }
+
+            console.log("Sucesso! Redirecionando para:", data.redirectUrl);
+
+            if (data.redirectUrl) {
+                showNotification("Redirecionando para o pagamento...");
+                closeDeliveryModal();
+                deliveryForm.reset();
+                // Pequeno delay para garantir que o usuário veja a msg
+                setTimeout(() => {
+                    window.location.href = data.redirectUrl;
+                }, 1000);
+            } else {
+                showNotification("Erro inesperado: URL de Checkout não recebida.");
+                console.error("Payload recebido sem redirectUrl:", data);
+            }
+
+        } catch (e) {
+            console.error('Erro de conexão total (rede/servidor):', e);
+            showNotification("Erro dev conexão. Verifique sua internet.");
+        } finally {
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = originalText;
+        }
     }
     // 🟢 --- FIM DA MODIFICAÇÃO --- 🟢
 
     // --- 10. FUNÇÕES AUXILIARES ---
-    function showNotification(message) { if(!notificationContainer)return; const t=document.createElement('div');t.className='toast-notification';t.innerHTML=`<i class="fas fa-check-circle"></i> ${message}`;notificationContainer.appendChild(t);setTimeout(()=>t.remove(),4000);}
-    function setupScrollAnimations() { const els=document.querySelectorAll('.fade-in-element');if('IntersectionObserver' in window){const o=new IntersectionObserver((e)=>e.forEach(i=>{if(i.isIntersecting){i.target.classList.add('visible');o.unobserve(i.target);}}),{threshold:0.1});els.forEach(el=>o.observe(el));}else{els.forEach(el=>el.classList.add('visible'));}}
+    function showNotification(message) { if (!notificationContainer) return; const t = document.createElement('div'); t.className = 'toast-notification'; t.innerHTML = `<i class="fas fa-check-circle"></i> ${message}`; notificationContainer.appendChild(t); setTimeout(() => t.remove(), 4000); }
+    function setupScrollAnimations() { const els = document.querySelectorAll('.fade-in-element'); if ('IntersectionObserver' in window) { const o = new IntersectionObserver((e) => e.forEach(i => { if (i.isIntersecting) { i.target.classList.add('visible'); o.unobserve(i.target); } }), { threshold: 0.1 }); els.forEach(el => o.observe(el)); } else { els.forEach(el => el.classList.add('visible')); } }
 
     // --- 11. FUNÇÃO DE FAVORITOS ---
     function toggleFavorite(productId, buttonElement) {
         const index = favorites.indexOf(productId);
         const iconElement = buttonElement.querySelector('i');
-        if (index > -1) { 
-            favorites.splice(index, 1); 
-            buttonElement.classList.remove('active'); 
-            if (iconElement) { iconElement.classList.replace('fas', 'far'); } 
-            showNotification("Removido dos favoritos!"); 
-        } 
-        else { 
-            favorites.push(productId); 
-            buttonElement.classList.add('active'); 
-            if (iconElement) { iconElement.classList.replace('far', 'fas'); } 
-            showNotification("Adicionado aos favoritos!"); 
+        if (index > -1) {
+            favorites.splice(index, 1);
+            buttonElement.classList.remove('active');
+            if (iconElement) { iconElement.classList.replace('fas', 'far'); }
+            showNotification("Removido dos favoritos!");
         }
-        saveFavorites(); 
-        
+        else {
+            favorites.push(productId);
+            buttonElement.classList.add('active');
+            if (iconElement) { iconElement.classList.replace('far', 'fas'); }
+            showNotification("Adicionado aos favoritos!");
+        }
+        saveFavorites();
+
         if (isShowingFavorites) {
             filterAndSortProducts();
         }
@@ -755,85 +769,85 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- 12. CONFIGURAÇÃO INICIAL E EVENT LISTENERS (Async) ---
     async function init() {
         console.log("Iniciando...");
-        try { 
-            if(typeof window.supabase==='undefined'||typeof window.supabase.createClient!=='function'){await new Promise(r=>setTimeout(r,150));if(typeof window.supabase==='undefined'||typeof window.supabase.createClient!=='function')throw new Error("Supabase lib not loaded.");} 
-            supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY); 
-            if(!supabaseClient||typeof supabaseClient.from!=='function')throw new Error("Failed Supabase client."); 
+        try {
+            if (typeof window.supabase === 'undefined' || typeof window.supabase.createClient !== 'function') { await new Promise(r => setTimeout(r, 150)); if (typeof window.supabase === 'undefined' || typeof window.supabase.createClient !== 'function') throw new Error("Supabase lib not loaded."); }
+            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            if (!supabaseClient || typeof supabaseClient.from !== 'function') throw new Error("Failed Supabase client.");
             console.log("Supabase OK.");
-        } catch(e){
-            console.error("Erro CRÍTICO Supabase:",e);
-            document.body.innerHTML=`<p style="color:red;text-align:center;">Erro DB: ${e.message}. Verifique a SUPABASE_ANON_KEY.</p>`;
+        } catch (e) {
+            console.error("Erro CRÍTICO Supabase:", e);
+            document.body.innerHTML = `<p style="color:red;text-align:center;">Erro DB: ${e.message}. Verifique a SUPABASE_ANON_KEY.</p>`;
             return;
         }
-        
+
         if (!cartIcon || !productGrid || !cartModalOverlay || !productModalOverlay || !deliveryModalOverlay || !deliveryForm || !cepInput || !productSection || !productGridWrapper || !loadMoreBtn || !paginacaoContainer) {
             console.error("Um ou mais elementos essenciais do DOM não foram encontrados. Verifique os IDs no HTML (incluindo 'paginacao').");
             return;
         }
 
-        loadCart(); 
-        loadFavorites(); 
+        loadCart();
+        loadFavorites();
         updateCartCount();
-        
-        try { 
-            if(productGrid) productGrid.innerHTML='<p style="text-align:center;color:#888;padding:40px 0;">Carregando...</p>';
-            
-            const heroAndThemePromise = loadHeroAndTheme();
-            const productsPromise = fetchProducts(); 
-            
-            const [ , loadedProducts] = await Promise.all([heroAndThemePromise, productsPromise]);
-            
-            allProducts = loadedProducts; 
 
-            filterAndSortProducts(); 
-        } catch(e){
-            console.error("Falha ao carregar conteúdo inicial:",e);
-            if (productGrid) productGrid.innerHTML=`<p style="color:red;text-align:center;">Erro: ${e.message}</p>`;
+        try {
+            if (productGrid) productGrid.innerHTML = '<p style="text-align:center;color:#888;padding:40px 0;">Carregando...</p>';
+
+            const heroAndThemePromise = loadHeroAndTheme();
+            const productsPromise = fetchProducts();
+
+            const [, loadedProducts] = await Promise.all([heroAndThemePromise, productsPromise]);
+
+            allProducts = loadedProducts;
+
+            filterAndSortProducts();
+        } catch (e) {
+            console.error("Falha ao carregar conteúdo inicial:", e);
+            if (productGrid) productGrid.innerHTML = `<p style="color:red;text-align:center;">Erro: ${e.message}</p>`;
             showNotification("Erro ao carregar.");
-            return; 
+            return;
         }
-        
+
         // --- Adiciona Event Listeners ---
-        cartIcon.addEventListener('click',openCartModal);
-        if(headerSearchBtn) headerSearchBtn.addEventListener('click',filterAndSortProducts);
-        
-        if (headerSearchInput && productSection) { 
-            headerSearchInput.addEventListener('keyup',(e)=>{if(e.key==='Enter')filterAndSortProducts();});
+        cartIcon.addEventListener('click', openCartModal);
+        if (headerSearchBtn) headerSearchBtn.addEventListener('click', filterAndSortProducts);
+
+        if (headerSearchInput && productSection) {
+            headerSearchInput.addEventListener('keyup', (e) => { if (e.key === 'Enter') filterAndSortProducts(); });
             headerSearchInput.addEventListener('focus', () => {
                 productSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
             });
         }
-        
-        if(sectionSearchBtn) sectionSearchBtn.addEventListener('click', filterAndSortProducts);
-        if(sectionSearchInput) sectionSearchInput.addEventListener('keyup', (e) => { if (e.key === 'Enter') filterAndSortProducts(); });
-        if(sortFilter) sortFilter.addEventListener('change',filterAndSortProducts);
-        if(categoryFilters) categoryFilters.addEventListener('click',(e)=>{if(e.target.classList.contains('category-btn')){const a=categoryFilters.querySelector('.category-btn.active');if(a)a.classList.remove('active');e.target.classList.add('active');filterAndSortProducts();}});
-        
-        productGrid.addEventListener('click',(e)=>{ 
-            const favBtn=e.target.closest('.product-favorite'); 
-            const addBtn=e.target.closest('.add-button'); 
-            const card=e.target.closest('.product-card'); 
-            if(favBtn&&card&&card.dataset.id){
+
+        if (sectionSearchBtn) sectionSearchBtn.addEventListener('click', filterAndSortProducts);
+        if (sectionSearchInput) sectionSearchInput.addEventListener('keyup', (e) => { if (e.key === 'Enter') filterAndSortProducts(); });
+        if (sortFilter) sortFilter.addEventListener('change', filterAndSortProducts);
+        if (categoryFilters) categoryFilters.addEventListener('click', (e) => { if (e.target.classList.contains('category-btn')) { const a = categoryFilters.querySelector('.category-btn.active'); if (a) a.classList.remove('active'); e.target.classList.add('active'); filterAndSortProducts(); } });
+
+        productGrid.addEventListener('click', (e) => {
+            const favBtn = e.target.closest('.product-favorite');
+            const addBtn = e.target.closest('.add-button');
+            const card = e.target.closest('.product-card');
+            if (favBtn && card && card.dataset.id) {
                 e.stopPropagation();
-                toggleFavorite(Number(card.dataset.id),favBtn);
-            } else if((addBtn||card)&&card&&card.dataset.id){
-                const p = allProducts.find(p=>p.id==card.dataset.id);
-                if(p&&(!p.stock||p.stock>0)){
+                toggleFavorite(Number(card.dataset.id), favBtn);
+            } else if ((addBtn || card) && card && card.dataset.id) {
+                const p = allProducts.find(p => p.id == card.dataset.id);
+                if (p && (!p.stock || p.stock > 0)) {
                     openProductModal(Number(card.dataset.id));
                 }
             }
         });
-        
-        if(closeDeliveryModalBtn) closeDeliveryModalBtn.addEventListener('click',closeDeliveryModal);
-        
-        deliveryForm.addEventListener('submit',handleDeliverySubmit); 
-        
-        cepInput.addEventListener('input',(e)=>{e.target.value=formatCEP(e.target.value);});
-        cepInput.addEventListener('blur',buscaCEP); 
-        
-        [productModalOverlay,cartModalOverlay,deliveryModalOverlay].forEach(o=>o.addEventListener('click',(e)=>{if(e.target===o){if(o===productModalOverlay)closeProductModal();if(o===cartModalOverlay)closeCartModal();if(o===deliveryModalOverlay)closeDeliveryModal();}}));
-        
-        if(favoritesIcon) {
+
+        if (closeDeliveryModalBtn) closeDeliveryModalBtn.addEventListener('click', closeDeliveryModal);
+
+        deliveryForm.addEventListener('submit', handleDeliverySubmit);
+
+        cepInput.addEventListener('input', (e) => { e.target.value = formatCEP(e.target.value); });
+        cepInput.addEventListener('blur', buscaCEP);
+
+        [productModalOverlay, cartModalOverlay, deliveryModalOverlay].forEach(o => o.addEventListener('click', (e) => { if (e.target === o) { if (o === productModalOverlay) closeProductModal(); if (o === cartModalOverlay) closeCartModal(); if (o === deliveryModalOverlay) closeDeliveryModal(); } }));
+
+        if (favoritesIcon) {
             favoritesIcon.addEventListener('click', (e) => {
                 e.preventDefault();
                 isShowingFavorites = !isShowingFavorites;
@@ -849,8 +863,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 filterAndSortProducts();
             });
         }
-        
-        if(accountIcon) accountIcon.addEventListener('click',(e)=>{e.preventDefault();alert("Conta: não implementado.");});
+
+        if (accountIcon) accountIcon.addEventListener('click', (e) => { e.preventDefault(); alert("Conta: não implementado."); });
 
         if (loadMoreBtn && productGridWrapper) {
             loadMoreBtn.addEventListener('click', () => {
@@ -862,16 +876,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     paginacaoContainer.classList.add('visible');
                 }
                 currentPage = 1;
-                updateProductDisplay(); 
+                updateProductDisplay();
             });
         }
-        
-        const handleScroll=()=>{const s=window.scrollY,t=10;if(s>t){if(promoBanner)promoBanner.classList.add('hidden');if(mainHeader){mainHeader.classList.add('scrolled');mainHeader.classList.add('banner-hidden');}}else{if(promoBanner)promoBanner.classList.remove('hidden');if(mainHeader){mainHeader.classList.remove('scrolled');mainHeader.classList.remove('banner-hidden');}}};
-        window.addEventListener('scroll',handleScroll);
+
+        const handleScroll = () => { const s = window.scrollY, t = 10; if (s > t) { if (promoBanner) promoBanner.classList.add('hidden'); if (mainHeader) { mainHeader.classList.add('scrolled'); mainHeader.classList.add('banner-hidden'); } } else { if (promoBanner) promoBanner.classList.remove('hidden'); if (mainHeader) { mainHeader.classList.remove('scrolled'); mainHeader.classList.remove('banner-hidden'); } } };
+        window.addEventListener('scroll', handleScroll);
         handleScroll();
-        
+
         console.log("✅ Sistema iniciado com INTEGRAÇÃO WHATSAPP!");
-    } 
+    }
 
     // --- 13. INICIAR ---
     init();

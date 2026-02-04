@@ -1,48 +1,84 @@
 /*
  * NETLIFY FUNCTION: criar-pagamento.js
- * Versão 5.0 - Limpeza Radical de Strings e Números
+ * Versão 5.1 - Diagnóstico e Robustez
  */
 
 const { MercadoPagoConfig, Preference } = require('mercadopago');
 
 exports.handler = async (event) => {
+    // Cabeçalhos CORS para permitir requisições locais e de produção
+    const headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS'
+    };
+
+    if (event.httpMethod === 'OPTIONS') {
+        return { statusCode: 200, headers, body: '' };
+    }
+
     if (event.httpMethod !== 'POST') {
-        return { statusCode: 405, body: JSON.stringify({ error: 'Método não permitido' }) };
+        return { statusCode: 405, headers, body: JSON.stringify({ error: 'Método não permitido' }) };
     }
 
     try {
         const MERCADO_PAGO_TOKEN = process.env.MP_ACCESS_TOKEN_PROD;
-        const host = event.headers.host;
-        const protocol = event.headers['x-forwarded-proto'] || 'https';
-        const BASE_URL = host ? `${protocol}://${host}` : "https://sccosplay.com.br";
 
         if (!MERCADO_PAGO_TOKEN) {
-            return { statusCode: 500, body: JSON.stringify({ error: 'Token não configurado.' }) };
+            console.error("ERRO: Token MP_ACCESS_TOKEN_PROD não encontrado no ambiente.");
+            return {
+                statusCode: 500,
+                headers,
+                body: JSON.stringify({ error: 'Token do Mercado Pago não configurado no servidor.' })
+            };
         }
 
         const body = JSON.parse(event.body);
         const { items, frete } = body;
 
-        const client = new MercadoPagoConfig({ accessToken: MERCADO_PAGO_TOKEN });
+        console.log(`Iniciando criação de preferência para ${items.length} itens. Frete: ${frete}`);
+
+        const client = new MercadoPagoConfig({
+            accessToken: MERCADO_PAGO_TOKEN,
+            options: { timeout: 5000 }
+        });
         const preferenceClient = new Preference(client);
 
-        // 1. Limpeza Radical dos Itens
-        const itemsFormatados = items.map(item => {
-            // Garante que o título não seja gigante e não tenha caracteres estranhos
-            const tituloLimpo = String(item.title).substring(0, 50).replace(/[^\w\s]/gi, '');
-            
+        // 1. Limpeza e Validação dos Itens
+        const itemsFormatados = items.map((item, index) => {
+            const title = String(item.title).substring(0, 250).trim() || "Produto Indefinido";
+            let unitPrice = Number(item.unit_price);
+            let quantity = parseInt(item.quantity, 10);
+
+            if (isNaN(unitPrice) || unitPrice <= 0) {
+                throw new Error(`Item ${index + 1} (${title}) tem preço inválido: ${item.unit_price}`);
+            }
+            if (isNaN(quantity) || quantity <= 0) {
+                quantity = 1;
+            }
+
             return {
-                title: tituloLimpo || "Produto SCCosplay",
-                quantity: parseInt(item.quantity) || 1,
-                // Força 2 casas decimais e garante que é positivo
-                unit_price: Math.round(Math.abs(Number(item.unit_price)) * 100) / 100,
+                title: title,
+                quantity: quantity,
+                unit_price: Number(unitPrice.toFixed(2)),
                 currency_id: 'BRL'
             };
         });
 
-        // 2. Limpeza do Frete
-        const custoFrete = Math.round(Math.abs(Number(frete)) * 100) / 100;
-        const freteFinal = isNaN(custoFrete) ? 0 : custoFrete;
+        // 2. Limpeza do Frete e Adição como Item
+        let custoFrete = Number(frete);
+        if (!isNaN(custoFrete) && custoFrete > 0) {
+            itemsFormatados.push({
+                title: "Frete e Envio",
+                quantity: 1,
+                unit_price: Number(custoFrete.toFixed(2)),
+                currency_id: 'BRL'
+            });
+        }
+
+        const host = event.headers.host;
+        const protocol = event.headers['x-forwarded-proto'] || 'https';
+        const BASE_URL = host ? `${protocol}://${host}` : "https://sccosplay.com.br";
 
         const preferenceBody = {
             items: itemsFormatados,
@@ -52,28 +88,38 @@ exports.handler = async (event) => {
                 pending: `${BASE_URL}/pendente.html`
             },
             auto_return: "approved",
-            shipments: {
-                mode: 'custom',
-                cost: freteFinal
-            }
+            // Removido shipments para evitar bloqueios de validação do Mercado Pago
+            statement_descriptor: "SC COSPLAY",
+            external_reference: `ORDER-${Date.now()}`
         };
 
-        console.log("DEBUG FINAL - Payload:", JSON.stringify(preferenceBody));
+        console.log("Enviando Payload para Mercado Pago:", JSON.stringify(preferenceBody, null, 2));
 
         const response = await preferenceClient.create({ body: preferenceBody });
 
+        console.log("Preferência Criada com Sucesso. ID:", response.id);
+
         return {
             statusCode: 200,
-            body: JSON.stringify({ redirectUrl: response.init_point })
+            headers,
+            body: JSON.stringify({
+                redirectUrl: response.init_point,
+                preferenceId: response.id // Retornando também o ID para debug se necessário
+            })
         };
 
     } catch (error) {
-        console.error('ERRO CRÍTICO MP:', error);
+        console.error('ERRO CRÍTICO NO BACKEND:', error);
+
+        // Tenta extrair mensagem de erro detalhada da API do MP
+        const errorMessage = error.cause?.description || error.message || "Erro desconhecido";
+
         return {
             statusCode: 500,
-            body: JSON.stringify({ 
-                error: 'Erro ao gerar link', 
-                details: error.message 
+            headers,
+            body: JSON.stringify({
+                error: 'Falha ao criar link de pagamento',
+                details: errorMessage
             })
         };
     }
