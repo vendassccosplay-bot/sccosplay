@@ -34,7 +34,7 @@ exports.handler = async (event) => {
         }
 
         const body = JSON.parse(event.body);
-        const { items, frete } = body;
+        const { items, frete, metadata } = body; // 🟢 Recebendo metadata do frontend
 
         console.log(`Iniciando criação de preferência para ${items.length} itens. Frete: ${frete}`);
 
@@ -77,8 +77,14 @@ exports.handler = async (event) => {
         }
 
         const host = event.headers.host;
-        const protocol = event.headers['x-forwarded-proto'] || 'https';
+        const xForwardedProto = event.headers['x-forwarded-proto'];
+        // Forçar HTTPS se não for localhost
+        const protocol = (host.includes('localhost') || host.includes('127.0.0.1')) ? 'http' : 'https';
+
+        // Fallback robusto para URL
         const BASE_URL = host ? `${protocol}://${host}` : "https://sccosplay.com.br";
+
+        console.log(`[DEBUG] Construindo back_urls com BASE_URL: ${BASE_URL} (Proto: ${protocol}, Host: ${host})`);
 
         const preferenceBody = {
             items: itemsFormatados,
@@ -88,7 +94,8 @@ exports.handler = async (event) => {
                 pending: `${BASE_URL}/pendente.html`
             },
             auto_return: "approved",
-            // Removido shipments para evitar bloqueios de validação do Mercado Pago
+            // 🟢 Passando metadata para o Webhook
+            metadata: metadata || {},
             statement_descriptor: "SC COSPLAY",
             external_reference: `ORDER-${Date.now()}`
         };

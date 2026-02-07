@@ -97,7 +97,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.secondary_color) rootElement.style.setProperty('--color-secondary-pink', data.secondary_color);
                 if (data.gradient_primary) rootElement.style.setProperty('--gradient-primary', data.gradient_primary);
                 if (data.footer_bg) rootElement.style.setProperty('--color-footer-bg', data.footer_bg);
-                if (data.color_accent_orange) rootElement.style.setProperty('--color-accent-orange', data.color_accent_orange);
                 if (data.color_highlight_pink) rootElement.style.setProperty('--color-highlight-pink', data.color_highlight_pink);
                 if (data.color_highlight_green) rootElement.style.setProperty('--color-highlight-green', data.color_highlight_green);
             }
@@ -110,7 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             let { data, error, status } = await supabaseClient
                 .from('products')
-                .select('id, name, price, stock, rating, description, category, image, peso, altura, largura, comprimento, galeria')
+                .select('id, name, price, stock, rating, description, category, image, peso, altura, largura, comprimento, galeria, variacoes')
                 .order('id', { ascending: true });
 
             if (error) {
@@ -328,6 +327,50 @@ document.addEventListener('DOMContentLoaded', () => {
             galleryImages = galleryImages.concat(product.galeria);
         }
 
+
+        // --- LOGIC FOR VARIATIONS (COLORS) ---
+        let variationsHTML = '';
+        let hasVariations = false;
+
+        if (product.variacoes && Array.isArray(product.variacoes) && product.variacoes.length > 0) {
+            hasVariations = true;
+            // Tentar identificar os campos (pode ser 'nome', 'cor', 'color' e 'imagem', 'src', 'url')
+            variationsHTML = `<div class="color-selector"><h4>Cor:</h4><div class="colors-options" style="display:flex; gap:10px; flex-wrap:wrap;">`;
+
+            product.variacoes.forEach((v, idx) => {
+                let vName, vImage;
+                if (typeof v === 'string') {
+                    vName = v; // Se for apenas string, o nome é a própria string
+                    vImage = null;
+                } else {
+                    vName = v.nome || v.cor || v.name || v.color || `Cor ${idx + 1}`;
+                    vImage = v.imagem || v.src || v.url || v.image || null;
+                }
+                const vId = `color-${product.id}-${idx}`;
+
+                // Se tiver imagem, usamos ela no data-image para troca dinâmica
+                const dataImgAttr = vImage ? `data-image="${vImage}"` : '';
+
+                // Criando o radio button
+                // Se for a primeira opção, marcamos como checked (opcional, ou deixar vazio para forçar escolha)
+                // Vamos deixar vazio para forçar a escolha se quiser, ou checked no primeiro.
+                // Padrão: checked no primeiro para facilitar.
+                const isChecked = idx === 0 ? 'checked' : '';
+
+                variationsHTML += `
+                    <div class="color-option-item">
+                        <input type="radio" id="${vId}" name="product-color-${product.id}" value="${vName}" ${dataImgAttr} ${isChecked} style="display:none;">
+                        <label for="${vId}" class="color-label" title="${vName}" 
+                               style="border:2px solid #ddd; padding:5px 10px; border-radius:4px; cursor:pointer; display:flex; align-items:center; gap:5px;">
+                            ${vImage ? `<img src="${vImage}" style="width:20px;height:20px;object-fit:cover;border-radius:50%;">` : ''}
+                            <span>${vName}</span>
+                        </label>
+                    </div>
+                 `;
+            });
+            variationsHTML += `</div></div>`;
+        }
+
         const modalHTML = `
             <div class="modal-content">
                 <button class="close-modal-btn" id="dynamic-close-product">&times;</button>
@@ -353,6 +396,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         <p class="modal-product-price">R$ ${productPrice}</p>
                         <p class="modal-product-description">${productDescription}</p>
                         
+                        ${variationsHTML} <!-- Inserindo Variações -->
+
                         <div class="size-selector"><h4>Tamanho:</h4><div class="sizes">
                             <input type="radio" id="size-p-${product.id}" name="product-size-${product.id}" value="P" checked><label for="size-p-${product.id}">P</label>
                             <input type="radio" id="size-m-${product.id}" name="product-size-${product.id}" value="M"><label for="size-m-${product.id}">M</label>
@@ -361,21 +406,71 @@ document.addEventListener('DOMContentLoaded', () => {
                             <input type="radio" id="size-g2-${product.id}" name="product-size-${product.id}" value="G2"><label for="size-g2-${product.id}">G2</label>
                             <input type="radio" id="size-g3-${product.id}" name="product-size-${product.id}" value="G3"><label for="size-g3-${product.id}">G3</label>
                         </div></div>
-                        <button class="modal-add-to-cart-btn" id="dynamic-add-to-cart" data-id="${product.id}"><i class="fas fa-cart-plus"></i> Adicionar</button>
+                        <button class="modal-add-to-cart-btn" id="dynamic-add-to-cart" data-id="${product.id}" data-has-variations="${hasVariations}"><i class="fas fa-cart-plus"></i> Adicionar</button>
                     </div>
                 </div>
             </div>`;
         productModalOverlay.innerHTML = modalHTML;
         productModalOverlay.classList.add('active');
+
+        // --- 6.1 Event Listeners para Variações ---
+        if (hasVariations) {
+            const colorInputs = document.querySelectorAll(`input[name="product-color-${product.id}"]`);
+            const mainImg = document.getElementById('modal-product-image');
+
+            // Atualizar estilo visual da seleção (borda colorida, etc)
+            const updateSelectionStyle = () => {
+                colorInputs.forEach(input => {
+                    const label = document.querySelector(`label[for="${input.id}"]`);
+                    if (input.checked) {
+                        label.style.borderColor = '#9C27B0'; // Cor destaque
+                        label.style.backgroundColor = '#f3e5f5';
+
+                        // Trocar imagem se disponível
+                        const newImg = input.getAttribute('data-image');
+                        if (newImg && newImg !== 'null' && newImg !== 'undefined') {
+                            mainImg.src = newImg;
+                        }
+                    } else {
+                        label.style.borderColor = '#ddd';
+                        label.style.backgroundColor = 'transparent';
+                    }
+                });
+            };
+
+            colorInputs.forEach(input => {
+                input.addEventListener('change', updateSelectionStyle);
+            });
+            // Inicializar estilo
+            updateSelectionStyle();
+        }
+
         const closeBtn = document.getElementById('dynamic-close-product');
         const addBtn = document.getElementById('dynamic-add-to-cart');
         if (closeBtn) closeBtn.addEventListener('click', closeProductModal);
         if (addBtn) {
             addBtn.addEventListener('click', (e) => {
                 const id = Number(e.target.dataset.id);
+                const hasVars = e.target.dataset.hasVariations === 'true';
+
                 const selectedSizeInput = document.querySelector(`input[name='product-size-${id}']:checked`);
+                let selectedColor = null;
+                let selectedColorImage = null;
+
+                if (hasVars) {
+                    const selectedColorInput = document.querySelector(`input[name='product-color-${id}']:checked`);
+                    if (!selectedColorInput) {
+                        showNotification("Selecione uma cor!");
+                        return;
+                    }
+                    selectedColor = selectedColorInput.value;
+                    selectedColorImage = selectedColorInput.getAttribute('data-image');
+                    // Converter string 'null' para null real se necessário
+                    if (selectedColorImage === 'null' || selectedColorImage === 'undefined') selectedColorImage = null;
+                }
+
                 if (selectedSizeInput) {
-                    addToCart(id, selectedSizeInput.value);
+                    addToCart(id, selectedSizeInput.value, selectedColor, selectedColorImage);
                     closeProductModal();
                 } else {
                     showNotification("Selecione um tamanho!");
@@ -387,11 +482,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function openCartModal() {
         if (!cartModalOverlay) return;
-        const modalHTML = `<div class="cart-modal"><div class="cart-modal-header"><h3>Seu Carrinho</h3><button class="close-modal-btn" id="dynamic-close-cart">&times;</button></div><div class="cart-modal-body" id="cart-items-container"></div><div class="cart-modal-footer"><div class="cart-total"><strong>Total:</strong><span id="cart-total-price">R$ 0,00</span></div><button class="checkout-btn" id="dynamic-checkout-btn"><i class="fas fa-credit-card"></i>Finalizar Pedido</button></div></div>`;
-        cartModalOverlay.innerHTML = modalHTML; cartModalOverlay.classList.add('modal-overlay'); cartModalOverlay.classList.add('active'); renderCartItems();
-        const cBtn = document.getElementById('dynamic-close-cart'); const oBtn = document.getElementById('dynamic-checkout-btn'); const iCont = document.getElementById('cart-items-container');
-        if (cBtn) cBtn.addEventListener('click', closeCartModal); if (oBtn) oBtn.addEventListener('click', () => { if (cart.length > 0) { closeCartModal(); openDeliveryModal(); } }); if (iCont) iCont.addEventListener('click', (e) => { if (e.target.classList.contains('remove-item-btn')) removeFromCart(Number(e.target.dataset.cartid)); });
+        const modalHTML = `
+            <div class="cart-modal">
+                <div class="cart-modal-header">
+                    <h3>Seu Carrinho</h3>
+                    <button class="close-modal-btn" id="dynamic-close-cart">&times;</button>
+                </div>
+                <div class="cart-modal-body" id="cart-items-container"></div>
+                <div class="cart-modal-footer">
+                    <div class="cart-total"><strong>Total:</strong><span id="cart-total-price">R$ 0,00</span></div>
+                    <button class="checkout-btn" id="dynamic-checkout-btn"><i class="fas fa-credit-card"></i> Finalizar Pedido</button>
+                </div>
+            </div>`;
+        cartModalOverlay.innerHTML = modalHTML;
+        cartModalOverlay.classList.add('modal-overlay');
+        cartModalOverlay.classList.add('active');
+        renderCartItems();
+
+        const cBtn = document.getElementById('dynamic-close-cart');
+        const oBtn = document.getElementById('dynamic-checkout-btn');
+        const wBtn = document.getElementById('dynamic-whatsapp-btn');
+        const iCont = document.getElementById('cart-items-container');
+
+        if (cBtn) cBtn.addEventListener('click', closeCartModal);
+
+        if (oBtn) oBtn.addEventListener('click', () => {
+            if (cart.length > 0) {
+                closeCartModal();
+                openDeliveryModal();
+            }
+        });
+
+
+
+        if (iCont) iCont.addEventListener('click', (e) => {
+            if (e.target.classList.contains('remove-item-btn')) removeFromCart(Number(e.target.dataset.cartid));
+        });
     }
+
+
     function closeCartModal() { if (cartModalOverlay) { cartModalOverlay.classList.remove('active'); cartModalOverlay.classList.remove('modal-overlay'); cartModalOverlay.innerHTML = ''; } }
 
     // --- 7. FUNÇÕES DE LÓGICA DO CARRINHO ---
@@ -414,12 +543,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!p) return;
 
                 total += (p.price || 0);
-                const img = p.image || 'img/placeholder.png';
+                const img = item.colorImage || p.image || 'img/placeholder.png';
                 const name = p.name || '?';
                 const price = (p.price || 0).toFixed(2).replace('.', ',');
                 const size = item.size || '?';
+                const colorInfo = item.color ? `<br><small>Cor: ${item.color}</small>` : '';
 
-                cont.innerHTML += `<div class="cart-item"><img src="${img}" alt="${name}" class="cart-item-image" onerror="this.onerror=null;this.src='img/placeholder.png';"><div class="cart-item-details"><p class="cart-item-name">${name} <strong>(Tam: ${size})</strong></p><p class="cart-item-price">R$ ${price}</p></div><button class="remove-item-btn" data-cartid="${item.cartId}">&times;</button></div>`;
+                cont.innerHTML += `<div class="cart-item"><img src="${img}" alt="${name}" class="cart-item-image" onerror="this.onerror=null;this.src='img/placeholder.png';"><div class="cart-item-details"><p class="cart-item-name">${name} <strong>(Tam: ${size})</strong>${colorInfo}</p><p class="cart-item-price">R$ ${price}</p></div><button class="remove-item-btn" data-cartid="${item.cartId}">&times;</button></div>`;
             });
             chkBtn.disabled = false;
             chkBtn.style.backgroundColor = '#25D366';
@@ -428,10 +558,16 @@ document.addEventListener('DOMContentLoaded', () => {
         updateCartCount();
     }
 
-    function addToCart(productId, size) {
+    function addToCart(productId, size, color = null, colorImage = null) {
         const p = allProducts.find(p => p.id == productId);
         if (p) {
-            cart.push({ id: p.id, size: size, cartId: Date.now() });
+            cart.push({
+                id: p.id,
+                size: size,
+                color: color,
+                colorImage: colorImage,
+                cartId: Date.now()
+            });
             saveCart();
             updateCartCount();
             showNotification(`'${p.name || '?'}' (Tam: ${size}) adicionado!`);
@@ -661,6 +797,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return {
                 nome: produto?.name || 'Produto',
                 tamanho: item.size,
+                cor: item.color || '',
                 preco: (produto?.price || 0).toFixed(2).replace('.', ','),
                 descricao: produto?.description || ''
             };
@@ -672,7 +809,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const p = allProducts.find(prod => prod.id == item.id);
             return {
                 id: String(p.id),
-                title: `${p.name} (Tam: ${item.size})`,
+                title: `${p.name} (Tam: ${item.size}${item.color ? ', Cor: ' + item.color : ''})`,
                 quantity: 1,
                 unit_price: p.price,
                 currency_id: 'BRL'
@@ -682,7 +819,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const checkoutData = {
             items: mpItems,
             frete: freteCalculado,
-            freteServico: freteServico
+            freteServico: freteServico,
+            // 🟢 METADATA ROBUSTO PARA WEBHOOK 🟢
+            metadata: {
+                client_name: nomeCompleto,
+                client_email: document.getElementById('client-email')?.value || 'Não informado', // Se tiver input de email
+                client_phone: document.getElementById('client-phone')?.value || 'Não informado', // Se tiver input de telefone
+                client_address: `${endereco}, ${numero} - ${bairro}, ${cidade}/${estado} - CEP: ${cep}`,
+                client_complement: complemento,
+                payment_method: formaPagamento,
+                items_summary: mpItems.map(i => `${i.title} (x${i.quantity})`).join(', ')
+            }
         };
 
         const confirmBtn = deliveryForm.querySelector('.confirm-order-btn');

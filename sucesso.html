@@ -191,7 +191,7 @@
             // Produtos
             if (carrinho && carrinho.length > 0) {
                 carrinho.forEach((item) => {
-                    mensagem += `${item.nome} (Tam: ${item.tamanho}) - \n`;
+                    mensagem += `${item.nome} (Tam: ${item.tamanho}${item.cor ? ', Cor: ' + item.cor : ''}) - \n`;
                     mensagem += `Descrição: ${item.descricao || 'Sem descrição'}\n`;
                     mensagem += `*Valor: R$ ${item.preco}*\n`;
                 });

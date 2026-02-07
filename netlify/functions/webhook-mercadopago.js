@@ -5,19 +5,19 @@
 
 const { MercadoPagoConfig, Payment } = require('mercadopago');
 const fetch = require('node-fetch');
-const querystring = require('querystring'); 
+const querystring = require('querystring');
 const { createClient } = require('@supabase/supabase-js');
 
 // Função principal
 exports.handler = async (event) => {
-    
+
     if (event.httpMethod !== 'POST') {
         return { statusCode: 405, body: 'Method Not Allowed' };
     }
 
     // --- 1. Pegar as chaves secretas ---
     const MERCADO_PAGO_TOKEN = process.env.MP_ACCESS_TOKEN_PROD;
-    const SITE_URL = process.env.SITE_URL; 
+    const SITE_URL = process.env.SITE_URL || process.env.SUA_URL;
     const SUPABASE_URL = process.env.SUPABASE_URL;
     const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 
@@ -33,7 +33,7 @@ exports.handler = async (event) => {
         const body = JSON.parse(event.body);
 
         if (body.type === 'payment' && body.data && body.data.id) {
-            
+
             const paymentId = body.data.id;
 
             // --- 3. Buscar os detalhes do pagamento no Mercado Pago ---
@@ -47,15 +47,15 @@ exports.handler = async (event) => {
 
             // --- 4. SÓ EXECUTAR SE O PAGAMENTO FOI APROVADO! ---
             if (paymentDetails.status === 'approved') {
-                
+
                 const itemsVendidos = paymentDetails.additional_info?.items || [];
                 const errosEstoque = [];
 
                 // --- 5. LÓGICA DE BAIXA DE ESTOQUE ---
                 if (itemsVendidos.length > 0) {
-                    
+
                     const stockUpdates = itemsVendidos.map(async (item) => {
-                        const produtoId = parseInt(item.id); 
+                        const produtoId = parseInt(item.id);
                         const quantidadeVendida = parseInt(item.quantity);
 
                         // Validação robusta
@@ -67,11 +67,11 @@ exports.handler = async (event) => {
 
                         if (produtoId && quantidadeVendida > 0) {
                             const { error: stockError } = await supabaseAdmin
-                                .rpc('decrement_stock', { 
-                                    product_id: produtoId, 
-                                    quantity_sold: quantidadeVendida 
+                                .rpc('decrement_stock', {
+                                    product_id: produtoId,
+                                    quantity_sold: quantidadeVendida
                                 });
-                            
+
                             if (stockError) {
                                 console.error(`Erro ao atualizar estoque do ID ${produtoId}:`, stockError.message);
                                 errosEstoque.push(`${item.title} (ID: ${produtoId}): ${stockError.message}`);
@@ -80,26 +80,31 @@ exports.handler = async (event) => {
                             }
                         }
                     });
-                    
+
                     await Promise.all(stockUpdates);
                 }
                 // --- FIM DO ESTOQUE ---
 
 
                 // --- 6. MONTAGEM DO E-MAIL ---
+
+                // 🟢 TENTATIVA DE USAR METADATA (DADOS DO FRONTEND) 🟢
+                const meta = paymentDetails.metadata || {};
+
                 let emailCorpo = `
 🎉 NOVA VENDA APROVADA!
 ═══════════════════════════════════════
 💰 Valor Total (com frete): R$ ${paymentDetails.transaction_amount}
-📧 Email: ${paymentDetails.payer?.email || 'Não informado'}
-👤 Nome: ${paymentDetails.payer?.first_name || ''} ${paymentDetails.payer?.last_name || ''}
-📱 Telefone: ${paymentDetails.payer?.phone?.number || 'Não informado'}
+📧 Email: ${meta.client_email !== 'Não informado' ? meta.client_email : (paymentDetails.payer?.email || 'Não informado')}
+👤 Nome: ${meta.client_name || paymentDetails.payer?.first_name || ''} ${!meta.client_name ? (paymentDetails.payer?.last_name || '') : ''}
+📱 Telefone: ${meta.client_phone !== 'Não informado' ? meta.client_phone : (paymentDetails.payer?.phone?.number || 'Não informado')}
 🆔 ID da Transação: ${paymentId}
+💳 Pagamento: ${meta.payment_method || 'Mercado Pago'}
 
 ═══════════════════════════════════════
 🛒 ITENS VENDIDOS:
 `;
-                
+
                 if (itemsVendidos.length > 0) {
                     itemsVendidos.forEach(item => {
                         emailCorpo += `   • ${item.title}\n`;
@@ -118,13 +123,26 @@ exports.handler = async (event) => {
 
                 emailCorpo += `\n═══════════════════════════════════════\n`;
                 emailCorpo += `📍 INFORMAÇÕES DE ENTREGA:\n\n`;
-                
+
                 // BUSCA O ENDEREÇO EM TODOS OS LOCAIS POSSÍVEIS
                 let enderecoEncontrado = false;
                 let addr = null;
-                
+
+                // 🟢 Prioridade 0: METADATA DO SITE (Mais confiável)
+                if (meta.client_address) {
+                    emailCorpo += `📦 Destinatário: ${meta.client_name || 'Não informado'}\n`;
+                    emailCorpo += `🏠 Endereço Completo: ${meta.client_address}\n`;
+                    if (meta.client_complement) emailCorpo += `📝 Complemento: ${meta.client_complement}\n`;
+                    emailCorpo += `ℹ️ (Dados fornecidos diretamente na loja)\n`;
+
+                    // Marcamos como encontrado para pular os outros checks se quiser, 
+                    // mas deixarei o flag false para que o bloco 'if (enderecoEncontrado)' abaixo não duplique 
+                    // ou podemos apenas setar uma var para pular o bloco padrão.
+                    // Vamos fazer assim: se achou metadata, já escrevemos acima e ignoramos o resto.
+                    enderecoEncontrado = false; // Já escrevemos, não precisa do bloco padrão.
+                }
                 // Prioridade 1: shipments direto (mais comum com mode: 'custom')
-                if (paymentDetails.shipments?.receiver_address) {
+                else if (paymentDetails.shipments?.receiver_address) {
                     addr = paymentDetails.shipments.receiver_address;
                     enderecoEncontrado = true;
                     console.log('✅ Endereço encontrado em: shipments.receiver_address');
@@ -151,17 +169,17 @@ exports.handler = async (event) => {
                 if (enderecoEncontrado && addr) {
                     emailCorpo += `📦 Destinatário: ${addr.receiver_name || paymentDetails.payer?.first_name || 'Não informado'}\n`;
                     emailCorpo += `🏠 Endereço: ${addr.street_name || ''}, ${addr.street_number || 'S/N'}\n`;
-                    
+
                     // Apartamento/Casa
                     if (addr.floor || addr.apartment) {
                         emailCorpo += `🚪 Apto/Casa: ${addr.floor || ''} ${addr.apartment || ''}\n`;
                     }
-                    
+
                     emailCorpo += `🏘️ Bairro: ${addr.neighborhood?.name || addr.neighborhood || 'Não informado'}\n`;
                     emailCorpo += `🌆 Cidade: ${addr.city?.name || addr.city_name || 'Não informado'}\n`;
                     emailCorpo += `🗺️ Estado: ${addr.state?.name || addr.state_name || 'Não informado'}\n`;
                     emailCorpo += `📮 CEP: ${addr.zip_code || 'Não informado'}\n`;
-                    
+
                     // Complemento/Observações
                     if (addr.comment) {
                         emailCorpo += `📝 Complemento: ${addr.comment}\n`;
@@ -178,7 +196,7 @@ exports.handler = async (event) => {
 
                 emailCorpo += `\n═══════════════════════════════════════\n`;
                 emailCorpo += `🔗 Ver no Mercado Pago: https://www.mercadopago.com.br/activities/${paymentId}\n`;
-                
+
                 // --- 7. ENVIAR E-MAIL ---
                 const formData = {
                     'form-name': 'vendas',
