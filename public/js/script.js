@@ -75,22 +75,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const { data, error, status } = await supabaseClient.from('hero_config').select('*').eq('is_active', true).limit(1).single();
             if (error) {
                 console.error(`Erro ao buscar Hero/Tema [${status}]:`, error.message);
-                if (heroTag) heroTag.textContent = 'Novidades';
-                if (heroTitle) heroTitle.textContent = 'Bem-vindo!';
-                if (heroSubtitle) heroSubtitle.textContent = 'Confira nossos produtos.';
-                if (heroBtnPrimary) heroBtnPrimary.textContent = 'Ver Produtos';
-                if (heroImage && (!heroImage.src || heroImage.src === window.location.href)) heroImage.src = 'img/hero-main-image.jpg';
+                // 🟢 PERFORMANCE: Se der erro, não faz nada, pois o HTML já tem o conteúdo padrão estático (hero-1.jpg).
+                // Isso evita "piscar" a tela trocando texto.
                 return;
             }
             if (data) {
                 console.log("Tema e Hero carregados:", data.tag);
                 if (heroTag) heroTag.innerHTML = `<i class="fas fa-star"></i> ${data.tag || ''}`;
-                if (heroTitle) heroTitle.innerHTML = data.titulo || 'Título Padrão';
+                if (heroTitle) heroTitle.innerHTML = data.titulo || 'SC COSPLAY';
                 if (heroSubtitle) heroSubtitle.textContent = data.subtitulo || '';
                 if (heroBtnPrimary) heroBtnPrimary.innerHTML = `${data.btn_primario_texto || 'Ver'} <i class="fas fa-arrow-right"></i>`;
                 if (heroBtnSecondary) heroBtnSecondary.textContent = data.btn_secundario_texto || 'Categorias';
                 if (heroImage) {
-                    heroImage.src = data.imagem_url || 'img/hero-main-image.jpg';
+                    heroImage.src = data.imagem_url || 'public/img/hero-1.jpg'; // Fallback corrigido
                     heroImage.alt = data.tag || 'Campanha Atual';
                 }
                 if (data.primary_color) rootElement.style.setProperty('--color-primary-purple', data.primary_color);
