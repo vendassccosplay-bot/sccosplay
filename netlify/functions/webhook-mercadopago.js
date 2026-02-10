@@ -92,18 +92,18 @@ exports.handler = async (event) => {
                 const meta = paymentDetails.metadata || {};
 
                 let emailCorpo = `
-🎉 NOVA VENDA APROVADA!
-═══════════════════════════════════════
-💰 Valor Total (com frete): R$ ${paymentDetails.transaction_amount}
-📧 Email: ${meta.client_email !== 'Não informado' ? meta.client_email : (paymentDetails.payer?.email || 'Não informado')}
-👤 Nome: ${meta.client_name || paymentDetails.payer?.first_name || ''} ${!meta.client_name ? (paymentDetails.payer?.last_name || '') : ''}
-📱 Telefone: ${meta.client_phone !== 'Não informado' ? meta.client_phone : (paymentDetails.payer?.phone?.number || 'Não informado')}
-🆔 ID da Transação: ${paymentId}
-💳 Pagamento: ${meta.payment_method || 'Mercado Pago'}
+                🎉 NOVA VENDA APROVADA!
+                ═══════════════════════════════════════
+                💰 Valor Total (com frete): R$ ${paymentDetails.transaction_amount}
+                📧 Email: ${meta.client_email !== 'Não informado' ? meta.client_email : (paymentDetails.payer?.email || 'Não informado')}
+                👤 Nome: ${meta.client_name || paymentDetails.payer?.first_name || ''} ${!meta.client_name ? (paymentDetails.payer?.last_name || '') : ''}
+                📱 Telefone: ${meta.client_phone !== 'Não informado' ? meta.client_phone : (paymentDetails.payer?.phone?.number || 'Não informado')}
+                🆔 ID da Transação: ${paymentId}
+                💳 Pagamento: ${meta.payment_method || 'Mercado Pago'}
 
-═══════════════════════════════════════
-🛒 ITENS VENDIDOS:
-`;
+                ═══════════════════════════════════════
+                🛒 ITENS VENDIDOS:
+                `;
 
                 if (itemsVendidos.length > 0) {
                     itemsVendidos.forEach(item => {
@@ -197,18 +197,38 @@ exports.handler = async (event) => {
                 emailCorpo += `\n═══════════════════════════════════════\n`;
                 emailCorpo += `🔗 Ver no Mercado Pago: https://www.mercadopago.com.br/activities/${paymentId}\n`;
 
-                // --- 7. ENVIAR E-MAIL ---
+                // --- 7. ENVIAR E-MAIL VIA NETLIFY FORMS ---
+                // Fallback para URL do site se não estiver definida
+                const TARGET_URL = SITE_URL || process.env.URL || 'https://sccosplay.com.br'; // Ajuste para sua URL real se necessário
+
                 const formData = {
                     'form-name': 'vendas',
                     'assunto': `🎉 Nova Venda #${paymentId} - R$ ${paymentDetails.transaction_amount}`,
                     'detalhes': emailCorpo,
                 };
 
-                await fetch(SITE_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: querystring.stringify(formData),
-                });
+                console.log(`📨 Enviando e-mail para: ${TARGET_URL} (Form: vendas)`);
+
+                try {
+                    const emailResponse = await fetch(TARGET_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: querystring.stringify(formData),
+                    });
+
+                    if (emailResponse.ok) {
+                        console.log('✅ Email enviado com sucesso para o Netlify Forms!');
+                    } else {
+                        console.error(`❌ Erro ao enviar email: ${emailResponse.status} ${emailResponse.statusText}`);
+                        // Tentar logar o corpo da resposta se possível
+                        try {
+                            const text = await emailResponse.text();
+                            console.error('Detalhes do erro de email:', text);
+                        } catch (e) { }
+                    }
+                } catch (fetchError) {
+                    console.error('❌ Exceção ao tentar enviar email:', fetchError);
+                }
 
                 console.log('✅ Email enviado com sucesso!');
             }

@@ -182,17 +182,29 @@
         const WHATSAPP_NUMERO = "551132285469";
 
         // Pega os dados do pedido
-        const dadosPedido = JSON.parse(localStorage.getItem('dadosPedido') || '{}');
-        const carrinho = JSON.parse(localStorage.getItem('carrinhoBackup') || '[]');
+        let dadosPedido = {};
+        let carrinho = [];
+
+        try {
+            dadosPedido = JSON.parse(localStorage.getItem('dadosPedido') || '{}');
+            carrinho = JSON.parse(localStorage.getItem('carrinhoBackup') || '[]');
+        } catch (e) {
+            console.error("Erro ao ler localStorage:", e);
+        }
 
         function montarMensagemWhatsApp() {
             let mensagem = '🟢====== *NOVO PEDIDO* ======🟢\n';
+
+            // Verifica se tem dados
+            if (!dadosPedido.nomeCompleto && carrinho.length === 0) {
+                return "Olá! Acabei de fazer um pedido no site, mas os dados não carregaram automaticamente. Poderia verificar?";
+            }
 
             // Produtos
             if (carrinho && carrinho.length > 0) {
                 carrinho.forEach((item) => {
                     mensagem += `${item.nome} (Tam: ${item.tamanho}${item.cor ? ', Cor: ' + item.cor : ''}) - \n`;
-                    mensagem += `Descrição: ${item.descricao || 'Sem descrição'}\n`;
+                    // mensagem += `Descrição: ${item.descricao || 'Sem descrição'}\n`; // Opcional para encurtar
                     mensagem += `*Valor: R$ ${item.preco}*\n`;
                 });
                 mensagem += `*Total de Itens: ${carrinho.length}*\n`;
@@ -202,11 +214,17 @@
             let subtotal = 0;
             if (carrinho && carrinho.length > 0) {
                 carrinho.forEach((item) => {
-                    subtotal += parseFloat(item.preco.replace(',', '.'));
+                    // Limpeza profana de moeda (R$ 1.200,50 -> 1200.50)
+                    let precoLimpo = String(item.preco).replace('R$', '').trim().replace('.', '').replace(',', '.');
+                    subtotal += parseFloat(precoLimpo) || 0;
                 });
             }
 
             const valorFrete = parseFloat(dadosPedido.frete) || 0;
+
+            // Se subtotal for 0 (erro de parse), tenta pegar do carrinho original se possível, ou ignora
+            // Aqui assumimos que o calculo está ok.
+
             const totalComFrete = subtotal + valorFrete;
 
             mensagem += `SUBTOTAL: R$ ${subtotal.toFixed(2).replace('.', ',')}\n`;
@@ -215,27 +233,42 @@
 
             // Dados do cliente
             mensagem += `📇 *DADOS DO CLIENTE:*\n`;
-            mensagem += `Nome Completo: ${dadosPedido.nomeCompleto}\n`;
-            mensagem += `CEP: ${dadosPedido.cep}\n`;
-            mensagem += `Endereço (Rua): ${dadosPedido.endereco}\n`;
-            mensagem += `Número: ${dadosPedido.numero}\n`;
+            mensagem += `Nome Completo: ${dadosPedido.nomeCompleto || 'Não informado'}\n`;
+            mensagem += `CEP: ${dadosPedido.cep || 'Não informado'}\n`;
+            mensagem += `Endereço: ${dadosPedido.endereco || ''}, ${dadosPedido.numero || ''}\n`;
             if (dadosPedido.complemento) {
                 mensagem += `Complemento: ${dadosPedido.complemento}\n`;
             }
-            mensagem += `Bairro: ${dadosPedido.bairro}\n`;
-            mensagem += `Cidade: ${dadosPedido.cidade}\n`;
-            mensagem += `Estado (UF): ${dadosPedido.estado}\n`;
+            mensagem += `Bairro: ${dadosPedido.bairro || ''}\n`;
+            mensagem += `Cidade: ${dadosPedido.cidade || ''} - ${dadosPedido.estado || ''}\n`;
             mensagem += `Forma de Pagamento: ${dadosPedido.formaPagamento || 'Pix'}\n\n`;
 
-            mensagem += `📲Pedido gerado pelo site. Aguardando sua confirmação!\n`;
-            mensagem += `*Por favor me envie o print do pagamento para confirmação*`;
+            mensagem += `📲 Pedido gerado pelo site. Aguardando confirmação!\n`;
+            mensagem += `*Envie o comprovante se já pagou!*`;
 
             return mensagem;
         }
 
-        // --- LÓGICA DE REDIRECIONAMENTO AUTOMÁTICO ---
-        let segundos = 5;
+        // --- LÓGICA DE REDIRECIONAMENTO E UI ---
         const countdownElement = document.getElementById('countdown');
+        const boxContent = document.getElementById('box-content');
+
+        // Gera o link imediatamente para deixar pronto
+        const mensagem = montarMensagemWhatsApp();
+        const linkWhatsApp = `https://wa.me/${WHATSAPP_NUMERO}?text=${encodeURIComponent(mensagem)}`;
+
+        let segundos = 5;
+
+        // Botão manual imediato (caso o usuário seja impaciente ou bloqueador de popup)
+        const btnManual = document.createElement('a');
+        btnManual.href = linkWhatsApp;
+        btnManual.className = "back-to-home-btn"; // Reutilizando estilo
+        btnManual.style.backgroundColor = "#25D366"; // Verde Zap
+        btnManual.style.marginTop = "10px";
+        btnManual.innerHTML = `<i class="fab fa-whatsapp"></i> Enviar Comprovante Agora`;
+
+        // Adiciona o botão manual logo abaixo do contador inicial, caso falhe
+        // Mas vamos substituir o conteudo do box após o timer
 
         const interval = setInterval(() => {
             segundos--;
@@ -244,23 +277,24 @@
             if (segundos <= 0) {
                 clearInterval(interval);
 
-                const mensagem = montarMensagemWhatsApp();
-                const mensagemCodificada = encodeURIComponent(mensagem);
-                const linkWhatsApp = `https://wa.me/${WHATSAPP_NUMERO}?text=${mensagemCodificada}`;
-
-                // Abre o WhatsApp automaticamente
+                // Tenta abrir
                 window.location.href = linkWhatsApp;
 
-                // Limpa os dados salvos
-                localStorage.removeItem('dadosPedido');
-                localStorage.removeItem('carrinhoBackup');
-                localStorage.removeItem('scCosplayCart');
+                // Atualiza a tela com botão manual
+                if (boxContent) {
+                    boxContent.innerHTML = `
+                        <h3 style="margin-bottom: 10px;">Dúvidas?</h3>
+                        <p style="font-size: 0.9rem; margin-bottom: 15px;">Se o WhatsApp não abriu, clique abaixo:</p>
+                        <a href="${linkWhatsApp}" class="back-to-home-btn" style="background-color: #25D366; width: 100%; justify-content: center;">
+                            <i class="fab fa-whatsapp" style="margin-right: 8px;"></i> Abrir WhatsApp
+                        </a>
+                    `;
+                }
 
-                // Atualiza a tela caso o redirecionamento demore
-                document.getElementById('box-content').innerHTML = `
-                    <p style="font-size: 1.2rem; font-weight: bold;">WhatsApp Aberto!</p>
-                    <p style="font-size: 0.9rem; margin-top:10px;">Se não abriu, <a href="${linkWhatsApp}" style="color:white; text-decoration:underline;">clique aqui</a>.</p>
-                `;
+                // Opcional: Limpar dados APÓS um tempo ou quando clica no botão "Voltar para loja"
+                // Se limpar agora, e o usuário der refresh, perde a mensagem.
+                // Melhor limpar apenas quando sair da página ou tiver certeza.
+                // localStorage.removeItem('dadosPedido'); 
             }
         }, 1000);
     </script>
