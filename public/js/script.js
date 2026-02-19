@@ -860,15 +860,25 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             console.log("Sucesso! Redirecionando para:", data.redirectUrl);
+            console.log("External Reference:", data.externalRef);
 
             if (data.redirectUrl) {
-                showNotification("Redirecionando para o pagamento...");
+                showNotification("Abrindo pagamento...");
                 closeDeliveryModal();
                 deliveryForm.reset();
-                // Pequeno delay para garantir que o usuário veja a msg
-                setTimeout(() => {
+
+                // Salva a referência e abre o MP em nova aba
+                if (data.externalRef) {
+                    localStorage.setItem('externalRef', data.externalRef);
+                    // Abre o MP em nova aba
+                    window.open(data.redirectUrl, '_blank');
+                    // Redireciona a página atual para a sala de espera
+                    window.location.href = `/aguardando.html?ref=${data.externalRef}`;
+                } else {
+                    // Fallback se não tiver externalRef (não deveria acontecer)
                     window.location.href = data.redirectUrl;
-                }, 1000);
+                }
+
             } else {
                 showNotification("Erro inesperado: URL de Checkout não recebida.");
                 console.error("Payload recebido sem redirectUrl:", data);

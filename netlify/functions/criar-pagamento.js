@@ -84,6 +84,8 @@ exports.handler = async (event) => {
         // Fallback robusto para URL
         const BASE_URL = host ? `${protocol}://${host}` : "https://sccosplay.com.br";
 
+        const externalRef = `ORDER-${Date.now()}`;
+
         console.log(`[DEBUG] Construindo back_urls com BASE_URL: ${BASE_URL} (Proto: ${protocol}, Host: ${host})`);
 
         const preferenceBody = {
@@ -97,7 +99,7 @@ exports.handler = async (event) => {
             // 🟢 Passando metadata para o Webhook
             metadata: metadata || {},
             statement_descriptor: "SC COSPLAY",
-            external_reference: `ORDER-${Date.now()}`
+            external_reference: externalRef
         };
 
         console.log("Enviando Payload para Mercado Pago:", JSON.stringify(preferenceBody, null, 2));
@@ -111,7 +113,8 @@ exports.handler = async (event) => {
             headers,
             body: JSON.stringify({
                 redirectUrl: response.init_point,
-                preferenceId: response.id // Retornando também o ID para debug se necessário
+                preferenceId: response.id, // Retornando também o ID para debug se necessário
+                externalRef: externalRef  // ⬅️ Adicionar isso
             })
         };
 

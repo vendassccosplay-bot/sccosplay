@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aguardando Pagamento - SC Cosplay</title>
+    <link rel="stylesheet" href="public/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            text-align: center;
+        }
+
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            max-width: 500px;
+            width: 90%;
+        }
+
+        h2 {
+            color: #9C27B0;
+            margin-bottom: 20px;
+        }
+
+        .spinner {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #9C27B0;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .info-text {
+            font-size: 1.1em;
+            color: #666;
+            margin-top: 20px;
+        }
+
+        .btn-home {
+            display: inline-block;
+            margin-top: 30px;
+            padding: 10px 20px;
+            background-color: #9C27B0;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: background 0.3s;
+        }
+
+        .btn-home:hover {
+            background-color: #7B1FA2;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="spinner"></div>
+        <h2>Aguardando Confirmação...</h2>
+        <p class="info-text">Estamos verificando seu pagamento.</p>
+        <p class="info-text">Assim que for confirmado, você será redirecionado automaticamente.</p>
+
+        <p style="margin-top: 30px; font-size: 0.9em; color: #888;">
+            <i class="fas fa-info-circle"></i> Complete o pagamento na aba que foi aberta.
+        </p>
+    </div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const ref = params.get('ref');
+
+        async function verificar() {
+            if (!ref) {
+                document.querySelector('.info-text').textContent = "Erro: Referência de pagamento não encontrada.";
+                document.querySelector('.spinner').style.display = 'none';
+                return;
+            }
+
+            try {
+                const res = await fetch(`/.netlify/functions/verificar-pagamento?preferenceId=${ref}`);
+                const data = await res.json();
+
+                if (data.status === 'approved') {
+                    document.querySelector('h2').textContent = "Pagamento Confirmado!";
+                    document.querySelector('.spinner').style.display = 'none';
+                    document.querySelector('.info-text').textContent = "Redirecionando...";
+                    setTimeout(() => {
+                        window.location.href = '/sucesso.html';
+                    }, 1000);
+                }
+            } catch (e) {
+                console.error('Erro ao verificar:', e);
+            }
+        }
+
+        // Verifica a cada 5 segundos
+        if (ref) {
+            setInterval(verificar, 5000);
+            verificar(); // Verifica imediatamente também
+        }
+    </script>
+</body>
+
+</html>
